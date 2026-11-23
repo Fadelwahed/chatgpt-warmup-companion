@@ -1,6 +1,6 @@
 {
   "protocolVersion": 1,
-  "engineVersion": "1.2.1-offline",
+  "engineVersion": "1.2.2-offline",
   "command": "schedule",
   "outcome": "ready",
   "reason": "slot_explanation",

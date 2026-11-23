@@ -866,9 +866,13 @@ const scheduleRevision = state => state.scheduleRevision ?? 0;
 function checkScheduleRevision(state, expected) {
   if (expected !== undefined && expected !== scheduleRevision(state)) throwCode('schedule_revision_conflict');
 }
-function bumpScheduleRevision(state) {
+function bumpScheduleRevision(state, keepPause = false) {
   if (scheduleRevision(state) === Number.MAX_SAFE_INTEGER) throwCode('schedule_revision_exhausted');
-  state.scheduleRevision = scheduleRevision(state) + 1;
+  const previous = scheduleRevision(state);
+  state.scheduleRevision = previous + 1;
+  // An edit that settled the pause (settlePause) keeps it current, so resume still records the later paused
+  // slots. Other schedule changes (recovery, maintenance) leave it stale, as do edits to a stale pause.
+  if (keepPause && state.scheduleEnabled !== true && state.schedulePause?.revision === previous) state.schedulePause = { ...state.schedulePause, revision: state.scheduleRevision };
 }
 function setScheduleEnabled(state, enabled) {
   if (state.scheduleEnabled !== enabled) bumpScheduleRevision(state);
@@ -945,19 +949,22 @@ function jobBinding(base, data, context) { return { root: base.root, dev: base.d
 
 const minutes = time => Number(time.slice(0, 2)) * 60 + Number(time.slice(3));
 const offsetDate = (date, days) => new Date(Date.parse(date) + days * 86400000).toISOString().slice(0, 10);
-function admissionsOnDate(schedule, date) {
+function dateOffsets(date, zone) {
   const start = Date.parse(date);
-  const offsets = new Set([-36, -12, 12, 36].map(hour => {
+  return new Set([-36, -12, 12, 36].map(hour => {
     const sample = start + hour * 3600000;
-    return Date.parse(`${localLabel(sample, schedule.zone)}Z`) - sample;
+    return Date.parse(`${localLabel(sample, zone)}Z`) - sample;
   }));
+}
+// The instants a local `YYYY-MM-DDTHH:MM` label names in `zone`: two in a fall-back hour, none in a skipped one.
+function labelInstants(label, zone, offsets = dateOffsets(label.slice(0, 10), zone)) {
+  return [...offsets].map(offset => Date.parse(`${label}Z`) - offset).filter(at => localLabel(at, zone) === label);
+}
+function admissionsOnDate(schedule, date) {
+  const offsets = dateOffsets(date, schedule.zone);
   const entries = [];
   for (const [time, admission] of admissionTimes(schedule, date)) {
-    const label = `${date}T${admission}`;
-    for (const offset of offsets) {
-      const at = Date.parse(`${label}Z`) - offset;
-      if (localLabel(at, schedule.zone) === label) entries.push({ slot: `${date}T${time}`, admission, date, at });
-    }
+    for (const at of labelInstants(`${date}T${admission}`, schedule.zone, offsets)) entries.push({ slot: `${date}T${time}`, admission, date, at });
   }
   return entries.sort((a, b) => a.at - b.at);
 }
@@ -1057,10 +1064,12 @@ async function editSchedule(base, marker, command, services) {
     const zone = scheduleZone(data.config, services);
     const { date, edits } = proposeEdit(data, command, services.clock.wall(), zone);
     const previous = state.scheduleEdits ?? null;
+    let keepPause = false;
     if (!command.preview && state.scheduleEnabled) settleElapsed(data, zone, services.clock.wall());
+    else if (!command.preview) keepPause = settlePause(data, zone, services.clock.wall());
     state.scheduleEdits = edits;
     if (!command.preview) {
-      bumpScheduleRevision(state);
+      bumpScheduleRevision(state, keepPause);
       // B3: one safe undo for the latest time edit; any other schedule change replaces it.
       if (['add', 'remove', 'move'].includes(command.action)) state.scheduleUndo = { revision: scheduleRevision(state), date, previous };
       else delete state.scheduleUndo;
@@ -1177,9 +1186,9 @@ async function changeSettings(base, marker, command, services) {
     const zone = scheduleZone(data.config, services);
     const now = services.clock.wall();
     const apply = proposeSetting(data, command, now, zone);
-    if (data.state.scheduleEnabled) settleElapsed(data, zone, now);
+    const keepPause = data.state.scheduleEnabled ? (settleElapsed(data, zone, now), false) : settlePause(data, zone, now);
     apply(data.state);
-    bumpScheduleRevision(data.state);
+    bumpScheduleRevision(data.state, keepPause);
     delete data.state.scheduleUndo;
     atomic(base, 'state.json', data.state, services);
     return result(0, 'ready', 'schedule_updated', settingsReport(data.state, effectiveSchedule(data, zone), localDate(localParts(now, zone))));
@@ -1275,7 +1284,7 @@ const GUIDANCE = {
   invalid_probe: 'review_history', registry_ineligible: 'review_router_state', login_lease: 'retry_after_router_login',
   primary_untrusted: 'review_router_state', saved_untrusted: 'review_router_state', identity_ambiguous: 'review_router_state',
   identity_mismatch: 'review_router_state', invalid_enrollment: 'review_router_state', invalid_router_account_id: 'review_router_state',
-  snapshot_changed: 'none',
+  snapshot_changed: 'none', send_check_failed: 'review_router_state',
 };
 const guidanceFor = reason => GUIDANCE[reason] ?? 'review_history';
 
@@ -1463,11 +1472,14 @@ async function schedule(base, data, { action, expectedRevision, now }, context, 
         if (observed === 'absent') { enableAttempted = true; await services.jobs.enable(binding); }
         if (await services.jobs.inspect(binding) !== 'loaded') throwCode('enable_incomplete');
         const enabledAt = services.clock.wall();
+        if (!previouslyEnabled && previousPause) dropOpenPauseRows(data.state, enabledAt, previousPause.at);
+        // Slots that closed before a paused edit were settled by it under the schedule they had (settlePause).
+        const settledBefore = Number.isFinite(data.state.settledAt) ? data.state.settledAt : -Infinity;
         if (previousPause?.zone === zone && pauseRevisionMatches && enabledAt >= previousPause.at) {
           const evidence = { previousTick: data.state.lastTick, tick: enabledAt, previousZone: zone, pauseStartedAt: previousPause.at };
           recordMissedRange(data.state, effectiveSchedule(data, zone), localLabel(previousPause.at, zone).slice(0, 10),
             localLabel(enabledAt, zone).slice(0, 10), 'schedule_disabled', evidence,
-            due => due.at >= previousPause.at && due.at + 60000 <= enabledAt);
+            due => due.at >= previousPause.at && due.at + 60000 > settledBefore && due.at + 60000 <= enabledAt);
         }
         delete data.state.schedulePause;
         setScheduleEnabled(data.state, true);
@@ -1824,7 +1836,7 @@ export function latestUsage(state, enrolled) {
 
 // Rows that only report an elapsed slot; a zone-change hold for the same key replaces them, so the
 // hold that keeps the new zone's matching minute from running can never be pre-empted by a report.
-const SETTLED_CAUSES = new Set(['no_tick_between', 'no_scheduled_accounts']);
+const SETTLED_CAUSES = new Set(['no_tick_between', 'no_scheduled_accounts', 'schedule_disabled']);
 function recordSlotMiss(state, due, cause, zone, evidence) {
   const existing = state.slotLedger?.[due?.slot];
   if (!due || state.slots[due.slot] || existing && !(cause === 'zone_changed' && SETTLED_CAUSES.has(existing.cause))) return false;
@@ -1853,6 +1865,35 @@ function recordMissedRange(state, schedule, firstDate, lastDate, cause, evidence
 // ordinary misses, so only the no-account skips are settled there.
 function tickZoneOf(data) {
   return data.state.lastTickZone ?? (data.state.lastTick !== null && data.config.schedule.zone === LEGACY_ZONE ? LEGACY_ZONE : null);
+}
+// Rows recorded for the pause that began at `pauseAt` (a disabled tick's own rows are observations, and
+// other pauses' rows are history) whose occurrence inside that pause has not closed on the current clock
+// were written while it ran ahead: drop them and pull the settled mark back, so those slots run or are
+// reported under the corrected clock.
+function dropOpenPauseRows(state, now, pauseAt) {
+  for (const [slot, row] of Object.entries(state.slotLedger ?? {})) {
+    if (row.cause !== 'schedule_disabled' || row.evidence?.pauseStartedAt !== pauseAt) continue;
+    if (!labelInstants(`${slot.slice(0, 10)}T${row.admission}`, row.zone).some(at => at >= pauseAt && at + 60000 <= now)) delete state.slotLedger[slot];
+  }
+  if (state.settledAt > now) state.settledAt = now;
+}
+// While paused, an edit first settles everything that closed before it under the settings that applied:
+// paused slots as `schedule_disabled`, and slots missed between the last tick and the pause as a tick
+// would. It then marks them settled (`settledAt`), so resume and later ticks apply the edited schedule
+// only to minutes still open at the edit: a time added after its minute passed is never reported.
+// Returns whether the pause stays current through the edit. Rows already written are kept.
+function settlePause(data, zone, now) {
+  const { state } = data, pause = state.schedulePause;
+  if (state.scheduleEnabled || !pause) return false;
+  dropOpenPauseRows(state, now, pause.at);
+  if (pause.revision !== scheduleRevision(state) || pause.zone !== zone || !(now >= pause.at)) return false;
+  const settled = Number.isFinite(state.settledAt) ? state.settledAt : -Infinity;
+  recordMissedRange(state, effectiveSchedule(data, zone), localLabel(pause.at, zone).slice(0, 10), localLabel(now, zone).slice(0, 10), 'schedule_disabled',
+    { previousTick: state.lastTick, tick: now, previousZone: zone, pauseStartedAt: pause.at }, due => due.at >= pause.at && due.at + 60000 > settled && due.at + 60000 <= now);
+  // Slots missed between the last tick and the pause, including one open when it began, count as a tick would count them.
+  settleElapsed(data, zone, Math.min(now, pause.at + 60000));
+  state.settledAt = Math.max(state.settledAt ?? settled, now);
+  return true;
 }
 function settleElapsed(data, zone, now, fromTick = false) {
   const { state } = data;
@@ -2190,9 +2231,12 @@ export function hostServices(root, command = (file, args) => execFileSync(file, 
     try {
       const output = String(run('/bin/launchctl', ['print', `gui/${uid}/${binding.label}`]));
       plist(binding);
-      const program = output.match(/^\s*program = (.+)\s*$/m)?.[1]?.trim();
-      const args = output.match(/\barguments = \{([^}]*)\}/s)?.[1]?.trim().split(/\s+/);
-      if (program !== nodePath || JSON.stringify(args) !== JSON.stringify([nodePath, scriptPath, 'tick'])) throwCode('job_ownership_unknown');
+      // launchctl indents top-level keys with one tab and each argument with two; only that indentation is
+      // removed, so paths with spaces or trailing blanks compare exactly. The top-level path is the loaded plist.
+      const program = output.match(/^\tprogram = (.*)$/m)?.[1];
+      const args = output.match(/^\targuments = \{\n((?:\t\t.*\n)*)\t\}$/m)?.[1].split('\n').slice(0, -1).map(line => line.slice(2));
+      const loadedFrom = output.match(/^\tpath = (.+)$/m)?.[1];
+      if (program !== nodePath || JSON.stringify(args) !== JSON.stringify([nodePath, scriptPath, 'tick']) || loadedFrom !== binding.plistPath) throwCode('job_ownership_unknown');
       return output;
     }
     catch (error) {

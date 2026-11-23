@@ -34,6 +34,13 @@ Manual runs work with scheduling disabled and without an earlier pilot, subject 
 
 Each command emits one bounded protocolVersion-1 JSON object with command, outcome, sanitized reason, installationId, engineVersion and observedAt. `run` also always reports selected, attempted and individual results. Attempted counts transport dispatches, not reservations, success or quota spent.
 
+### Engine 1.2.2-offline (23 November 2026)
+
+- **Job inspection:** the engine reads each `launchctl print` argument as one whole line, removing only launchctl's indentation, so an install path with a space is recognised as its own job and an argument that differs only by a trailing blank is not; it also requires the job's top-level `path` to be the engine's own plist. A same-label job loaded from another plist, or one with no `path` line, is `job_ownership_unknown`.
+- **Pause evidence:** a time or settings edit made while scheduling is paused first settles what already passed under the settings that applied: paused slots as `schedule_disabled` with `pauseStartedAt`, and slots missed between the last tick and the pause as `no_tick_between`. It then keeps the pause current, so resuming records the later paused slots as `schedule_disabled` too, instead of as `no_tick_between`. Resuming and later ticks apply the edited schedule only to minutes still open at the edit, so a time added after its minute passed (for example in a fall-back hour) is never reported. Recovery and maintenance still end the pause evidence, as before. If the clock was set back after such an edit, the next paused edit or the resume drops that pause's rows whose occurrence inside the pause has not closed on the corrected clock (a repeated enable leaves history alone), so those slots run or are reported under it. A time-zone hold for the same minute replaces a paused-slot row, so it always holds.
+- **Guidance:** `send_check_failed` now carries the guidance `review_router_state` instead of the fallback `review_history`.
+- **Test guard:** the test guard denies any path that is not already in resolved form, so a `..` after a symlink can no longer be checked as one path and opened as another.
+
 ### Engine 1.2.1-offline (23 November 2026)
 
 - **TLS:** the probe request sets `rejectUnauthorized: true` explicitly, so `NODE_TLS_REJECT_UNAUTHORIZED=0` in a shell cannot turn off certificate checks before the bearer token is sent.

@@ -16,6 +16,8 @@ function safe(value, write = false, finalLink = false) {
   if (Buffer.isBuffer(value)) value = value.toString();
   if (typeof value !== 'string' || !path.isAbsolute(value)) return deny();
   const target = path.resolve(value), privatePath = inside(root, target), base = privatePath ? root : repo;
+  // The filesystem follows links before '..', so only an already-canonical path is checked as it is used.
+  if (target !== value) return deny();
   if (!privatePath && (write || !inside(repo, target) || !(target.endsWith('.mjs') || inside(path.join(repo, 'test', 'fixtures'), target)))) return deny();
   let cursor = base;
   const parts = path.relative(base, target).split(path.sep).filter(Boolean);

@@ -178,7 +178,7 @@ test('B host job binding writes only exact synthetic plist through stubbed launc
       if (file === '/bin/ls') return 'drwx------  1 user staff 1 Nov 12 12:34 synthetic';
       if (file !== '/bin/launchctl') throw Error('unexpected command');
       if (args[0] === 'print') {
-        if (loaded) return `service = local.codex-router-warmup\nprogram = ${services.context.nodePath}\narguments = { ${services.context.nodePath} ${services.context.scriptPath} tick }`;
+        if (loaded) return `gui/501/local.codex-router-warmup = {\n\tpath = ${f.plistPath}\n\tprogram = ${services.context.nodePath}\n\targuments = {\n\t\t${services.context.nodePath}\n\t\t${services.context.scriptPath}\n\t\ttick\n\t}\n}`;
         throw Object.assign(Error('absent'), { stderr: 'Could not find service' });
       }
       if (args[0] === 'bootstrap') { loaded = true; return ''; }
@@ -238,7 +238,7 @@ test('B18 schedule rolls a partially loaded bootstrap back without touching unre
       if (file !== '/bin/launchctl') throw Error('unexpected host command');
       if (args[0] === 'print') {
         if (!loaded) throw Object.assign(Error('absent'), { stderr: 'Could not find service' });
-        return `service = local.codex-router-warmup\nprogram = ${services.context.nodePath}\narguments = { ${services.context.nodePath} ${services.context.scriptPath} tick }`;
+        return `gui/501/local.codex-router-warmup = {\n\tpath = ${f.plistPath}\n\tprogram = ${services.context.nodePath}\n\targuments = {\n\t\t${services.context.nodePath}\n\t\t${services.context.scriptPath}\n\t\ttick\n\t}\n}`;
       }
       if (args[0] === 'bootstrap') { loaded = true; throw Error('synthetic_partial_bootstrap'); }
       if (args[0] === 'bootout') { loaded = false; return ''; }

@@ -63,6 +63,18 @@ public enum AccountNaming {
         }
         return labels
     }
+
+    /// "Account N" per account in `order`, whatever the nicknames: the names run results use.
+    public static func numbers(order: [String]) -> [String: String] {
+        self.labels(order: order, names: AccountNames(names: [:]), hidden: true)
+    }
+
+    /// The number shown beside a nickname, so a result naming "Account 2" matches its row (0.6.4).
+    /// Nil when the row already shows its number.
+    public static func numberBeside(label: String, number: String?) -> String? {
+        guard let number, number != label else { return nil }
+        return number
+    }
 }
 
 /// The "Reconnect to the engine" card after an engine update. The app never rebinds itself; it only

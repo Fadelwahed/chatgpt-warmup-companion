@@ -1500,14 +1500,15 @@ struct AccountsPane: View {
             let zone = self.model.status?.schedule.zone ?? TimeZone.current.identifier
             Table(self.model.accounts?.rows ?? [], selection: self.$selection) {
                 TableColumn("Account") { row in AccountNameCell(model: self.model, row: row) }
-                    .width(min: 140, ideal: 180)
+                    // Room for "Not added yet · Account 2" on the second line (0.6.4).
+                    .width(min: 160, ideal: 230)
                 TableColumn("Last warm-up") { row in
                     let text = AccountText.last(row, zone: zone)
                     Text(text).lineLimit(2).fixedSize(horizontal: false, vertical: true).help(text)
                 }
                 .width(min: 120, ideal: 170)
                 TableColumn("5-hour window") { row in UsageCellView(model: self.model, row: row) }
-                    .width(min: 150, ideal: 210)
+                    .width(min: 150, ideal: 180)
                 TableColumn("Scheduled") { row in
                     if let enrollment = row.enrollmentId, row.enabled, self.model.supports("scheduled_accounts") {
                         ScheduledToggle(
@@ -1558,6 +1559,8 @@ struct AccountsPane: View {
             // Announced once by the Overview pane, which stays loaded in the window.
         }
         .sheet(item: self.$renaming) { row in RenameSheet(model: self.model, row: row) }
+        // Hiding names closes an open Rename sheet, whose field shows the nickname.
+        .onChange(of: self.model.hideAccountNames) { _, hidden in if hidden { self.renaming = nil } }
     }
 
 }
@@ -1573,12 +1576,21 @@ private struct AccountNameCell: View {
         // Two lines, so the state is never cut off at the default width (0.6.3).
         VStack(alignment: .leading, spacing: 2) {
             Text(label).fontWeight(.semibold).lineLimit(1).truncationMode(.middle).help(label)
-            // Orange on the symbol only; the words keep text contrast.
-            Label(AccountText.readiness(self.row), systemImage: AccountText.symbol(self.row))
-                .font(.callout)
-                .lineLimit(1)
-                .labelStyle(LegendLabelStyle(tint: look ? .orange : .secondary))
-                .foregroundStyle(look ? Color.primary : Color.secondary)
+            HStack(spacing: 4) {
+                // Orange on the symbol only; the words keep text contrast.
+                Label(AccountText.readiness(self.row), systemImage: AccountText.symbol(self.row))
+                    .lineLimit(1)
+                    .labelStyle(LegendLabelStyle(tint: look ? .orange : .secondary))
+                    .foregroundStyle(look ? Color.primary : Color.secondary)
+                // A nicknamed account also shows its number, which run results use (0.6.4).
+                if let number = AccountNaming.numberBeside(
+                    label: label, number: self.row.enrollmentId.flatMap { self.model.accountNumbers[$0] })
+                {
+                    // Kept whole at narrow widths; the state truncates first (its text is in VoiceOver).
+                    Text("· \(number)").foregroundStyle(.secondary).lineLimit(1).fixedSize().layoutPriority(1)
+                }
+            }
+            .font(.callout)
         }
         .accessibilityElement(children: .combine)
     }
@@ -1661,7 +1673,9 @@ private struct AccountActions: View {
         if enrolled || canEnroll || self.row.enrollmentId != nil {
             Menu {
                 if self.row.enrollmentId != nil {
+                    // The field would show the saved nickname, which Hide account names keeps off screen.
                     Button("Rename…", action: self.rename).accessibilityLabel("Rename \(label)")
+                        .disabled(self.model.hideAccountNames)
                 }
                 if let enrollment = self.row.enrollmentId, enrolled {
                     Button("Warm Up…") {

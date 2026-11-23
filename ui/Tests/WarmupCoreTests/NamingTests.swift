@@ -125,4 +125,13 @@ import Testing
         #expect(many.times.count == 2_000)
         #expect(many.times.first == 100)
     }
+
+    /// 0.6.4: a nicknamed row shows its number, which run results use; a numbered row does not repeat it.
+    @Test func numberBesideNickname() {
+        let numbers = AccountNaming.numbers(order: ["a", "b"])
+        #expect(numbers == ["a": "Account 1", "b": "Account 2"])
+        #expect(AccountNaming.numberBeside(label: "Work", number: numbers["a"]) == "Account 1")
+        #expect(AccountNaming.numberBeside(label: "Account 2", number: numbers["b"]) == nil)
+        #expect(AccountNaming.numberBeside(label: "Not enrolled", number: nil) == nil)
+    }
 }

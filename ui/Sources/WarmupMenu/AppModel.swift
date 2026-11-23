@@ -115,6 +115,8 @@ final class AppModel: ObservableObject {
     static let effectCountFromDayKey = "effectCountFromDay"
     /// On-screen account labels by enrollment ID: nicknames unless hidden, otherwise "Account N" (F3).
     @Published private(set) var labels: [String: String] = [:]
+    /// "Account N" per enrollment, shown beside nicknames and used in run results.
+    @Published private(set) var accountNumbers: [String: String] = [:]
     @Published private(set) var accountNames: AccountNames
     private let namesStore: AccountNamesStore?
     @Published var hideAccountNames = UserDefaults.standard.bool(forKey: AppModel.hideAccountNamesKey) {
@@ -361,6 +363,7 @@ final class AppModel: ObservableObject {
     /// Labels follow status order, then accounts only in the Accounts list; the effect rows use them.
     private func recomputeLabels() {
         let order = self.labelOrder
+        self.assign(\.accountNumbers, AccountNaming.numbers(order: order))
         self.assign(\.labels, AccountNaming.labels(order: order, names: self.accountNames, hidden: self.hideAccountNames))
         self.recomputeEffect()
     }
@@ -820,7 +823,7 @@ final class AppModel: ObservableObject {
         switch operation {
         case .runAll, .runAccount:
             // Numbers only: a result stays on screen, and Hide account names may be turned on later.
-            let labels = AccountNaming.labels(order: self.labelOrder, names: self.accountNames, hidden: true)
+            let labels = self.accountNumbers
             report = Self.makeReport(operation, await client.mutate(operation.command, as: RunReply.self)) {
                 OperationReporter.run(operation, envelope: $0, reply: $1, labels: labels)
             }

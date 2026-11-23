@@ -1,0 +1,10 @@
+{
+  "protocolVersion": 1,
+  "engineVersion": "1.2.1-offline",
+  "command": "enroll",
+  "outcome": "ready",
+  "reason": "already_enrolled",
+  "installationId": "install_ui_fixture_01",
+  "observedAt": "2026-11-13T07:00:00.000Z",
+  "enrollmentId": "enr_01"
+}

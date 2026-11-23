@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "reviewedRevision": "7e7350e7b579b8b5b2085ee4bafc216c13e2c6d9",
+  "sourceDigests": {
+    "src/paths.mjs": "de6f271f7871c256c6c8b54383973bc30f2d5ed5638f5deac6c51f41ad45939e",
+    "src/chatgpt-account-pool.mjs": "435eb153a49487414d02c2f4b1eb0de92a693a9a53793caeff7861d09d8bf624",
+    "src/chatgpt-profile-switch.mjs": "66f82f50cfdb38c16a9f77261752b93a0fc304e5da41e1abcf774b133786f256",
+    "src/chatgpt-login-lease.mjs": "614090504074412710ac6566958701cf0ab2576341fe9bb7fb0611da43fa3a03",
+    "src/discovery-mode.mjs": "3d75e5df2166c10cca44de6f3bbe573a0deb53a4fa2f54ce30b9c7418f0770be",
+    "src/codex-maintenance.mjs": "a10e01c4ec272089f6f92c0a172d0a8aa8995410896b19f4f88f441dc588007e",
+    "src/update.mjs": "c970fdcbb56ba714a347f2f7de9bbd4e214862342e2153cf131110598ffd2c18",
+    "bin/install": "ca58c84ea41a23ddc1c618f3c576ac836db0773a743e1dd2f09d1574a18c6a0b",
+    "src/catalog-publication-lock.mjs": "fc21584a18cbc229216314401c62524970333956a1649df3e40a7523c37e9f73",
+    "src/codex-native-session.mjs": "26e63a86080a1adf3b891ce6ef0d48ffc0bf0ffeee5e6c5cfaed98a2732b7ecd",
+    "src/install-manifest.mjs": "a8e5709d092c7966c603179d7cd51cf5e689fa9b8b6dbae6dc8087faa9a0a285",
+    "src/file-lock.mjs": "cf050d28611fa582a98572a013e269db011f812b65f4632ba080b2126e6049b4",
+    "src/process-identity.mjs": "05cd6f72c56feb9e4163f46cba9fc1dcfda21cf7e4550b35d70e6761cdfb12f2"
+  },
+  "adapterVersion": 1,
+  "requestContractVersion": 1,
+  "sourcePathContract": "Default codex-router install paths; see docs/ENGINE-REFERENCE.md",
+  "reviewEvidence": "codex-router revision 7e7350e7 reviewed for Warm-up engine 1.2.0",
+  "semantics": "equivalent"
+}

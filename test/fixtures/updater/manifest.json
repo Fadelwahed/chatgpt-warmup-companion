@@ -1,0 +1,21 @@
+{
+  "baseline": "4e8b5de9d8dd0161ad3e66356ca4c5d1d0edd5b6",
+  "candidate": "bf13c0e261304c029361d7618daed3c4ab5f425f",
+  "files": {
+    "src-update.mjs.txt": {
+      "source": "src/update.mjs",
+      "sha256": "c970fdcbb56ba714a347f2f7de9bbd4e214862342e2153cf131110598ffd2c18",
+      "baselineEqualsCandidate": true
+    },
+    "src-codex-maintenance.mjs.txt": {
+      "source": "src/codex-maintenance.mjs",
+      "sha256": "a10e01c4ec272089f6f92c0a172d0a8aa8995410896b19f4f88f441dc588007e",
+      "baselineEqualsCandidate": true
+    },
+    "bin-install.txt": {
+      "source": "bin/install",
+      "sha256": "ca58c84ea41a23ddc1c618f3c576ac836db0773a743e1dd2f09d1574a18c6a0b",
+      "baselineEqualsCandidate": true
+    }
+  }
+}

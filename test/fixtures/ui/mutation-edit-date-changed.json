@@ -1,0 +1,9 @@
+{
+  "protocolVersion": 1,
+  "engineVersion": "1.2.1-offline",
+  "command": "schedule",
+  "outcome": "blocked",
+  "reason": "schedule_date_changed",
+  "installationId": "install_ui_fixture_01",
+  "observedAt": "2026-11-13T05:59:30.000Z"
+}

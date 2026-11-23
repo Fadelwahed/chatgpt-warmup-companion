@@ -1,0 +1,31 @@
+{
+  "protocolVersion": 1,
+  "engineVersion": "1.2.1-offline",
+  "command": "run",
+  "outcome": "success",
+  "reason": "run_complete",
+  "installationId": "install_ui_fixture_01",
+  "observedAt": "2026-11-13T07:00:00.000Z",
+  "selected": 2,
+  "attempted": 2,
+  "results": [
+    {
+      "enrollmentId": "enr_01",
+      "reservationId": "res_01",
+      "outcome": "success",
+      "reason": "marker_confirmed",
+      "dispatched": true,
+      "at": 1794553200000,
+      "firstTextMs": 800
+    },
+    {
+      "enrollmentId": "enr_02",
+      "reservationId": "res_02",
+      "outcome": "success",
+      "reason": "marker_confirmed",
+      "dispatched": true,
+      "at": 1794553200000,
+      "firstTextMs": 800
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "protocolVersion": 1,
+  "engineVersion": "1.2.1-offline",
+  "command": "schedule",
+  "outcome": "ready",
+  "reason": "schedule_disabled",
+  "installationId": "install_ui_fixture_01",
+  "observedAt": "2026-11-13T07:00:00.000Z",
+  "scheduleEnabled": false,
+  "scheduleRevision": 5,
+  "job": "absent"
+}

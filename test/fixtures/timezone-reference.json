@@ -1,0 +1,47 @@
+{
+  "reference": {
+    "url": "https://data.iana.org/time-zones/tzdb-2026f/asia",
+    "localVersion": "2026f",
+    "resolvedZone": "/private/var/db/timezone/tz/2026f.1.0/zoneinfo/Asia/Gaza",
+    "zoneSha256": "b7463171440be7754d2a729b2a28e7d0e13f31aaf21329e89da6ec7be893b73b",
+    "ruleHeader": [
+      "# version 2026f-rearguard",
+      "# redo posix_only",
+      "# This zic input file is in the public domain."
+    ],
+    "rulesSha256": "d1ff834c282ae649b0811a397d2996bedae453c009f55db88d9cdcef82bfccfa",
+    "systemTimezoneRoot": "/private/var/db/timezone/tz/2026f.1.0/zoneinfo",
+    "networkUsed": false
+  },
+  "observedAt": "2026-11-12T20:00:50.491429+00:00",
+  "expected": [
+    {
+      "instant": "2026-03-27T23:59:59Z",
+      "local": "2026-03-28T01:59:59+02:00"
+    },
+    {
+      "instant": "2026-03-28T00:00:00Z",
+      "local": "2026-03-28T03:00:00+03:00"
+    },
+    {
+      "instant": "2026-10-23T22:59:59Z",
+      "local": "2026-10-24T01:59:59+03:00"
+    },
+    {
+      "instant": "2026-10-23T23:00:00Z",
+      "local": "2026-10-24T01:00:00+02:00"
+    },
+    {
+      "instant": "2026-11-12T06:00:00Z",
+      "local": "2026-11-12T08:00:00+02:00"
+    },
+    {
+      "instant": "2026-11-12T11:00:00Z",
+      "local": "2026-11-12T13:00:00+02:00"
+    },
+    {
+      "instant": "2026-11-12T16:00:00Z",
+      "local": "2026-11-12T18:00:00+02:00"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "protocolVersion": 1,
+  "engineVersion": "1.2.1-offline",
+  "command": "run",
+  "outcome": "busy",
+  "reason": "slot_overlap_risk",
+  "installationId": "install_ui_fixture_01",
+  "observedAt": "2026-11-13T05:59:30.000Z",
+  "selected": 2,
+  "attempted": 0,
+  "results": [],
+  "overlap": {
+    "slot": "2026-11-13T08:00",
+    "admission": "08:00",
+    "date": "2026-11-13",
+    "at": 1794549600000
+  }
+}

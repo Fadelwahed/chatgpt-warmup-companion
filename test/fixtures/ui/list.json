@@ -1,0 +1,45 @@
+{
+  "protocolVersion": 1,
+  "engineVersion": "1.2.1-offline",
+  "command": "list",
+  "outcome": "ready",
+  "reason": "list",
+  "installationId": "install_ui_fixture_01",
+  "observedAt": "2026-11-12T04:00:00.000Z",
+  "rows": [
+    {
+      "routerAccountId": "router_a",
+      "enrollmentId": "enr_01",
+      "registered": true,
+      "registryReason": "eligible",
+      "enrollmentState": "enabled",
+      "eligible": true,
+      "enabled": true,
+      "pilot": true,
+      "credentialFreshness": "unknown",
+      "finalDispatchEligibility": "unknown",
+      "lastOutcome": "success",
+      "lastReason": "marker_confirmed",
+      "lastAt": 1794456000000,
+      "enrollCommand": "enroll --account router_a",
+      "runCommand": "run --account enr_01"
+    },
+    {
+      "routerAccountId": "router_b",
+      "enrollmentId": "enr_02",
+      "registered": true,
+      "registryReason": "eligible",
+      "enrollmentState": "enabled",
+      "eligible": true,
+      "enabled": true,
+      "pilot": true,
+      "credentialFreshness": "unknown",
+      "finalDispatchEligibility": "unknown",
+      "lastOutcome": "success",
+      "lastReason": "marker_confirmed",
+      "lastAt": 1794456000000,
+      "enrollCommand": "enroll --account router_b",
+      "runCommand": "run --account enr_02"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+# macOS and build output
+.DS_Store
+ui/.build/
+/.build/
+*.app/
+
+# Local agent and tooling state
+/.claude/
+/.omx/
+/.omx-state-locks/
+/.omx-state-locks.identity.json
+/.private/
+
+# Maintainer working notes and run records (kept local, not part of the project)
+/AGENTS.md
+/CHECKPOINT.md
+/NEW-SESSION-HANDOFF.md
+/progress.md
+/evidence/
+/delivery/
+/docs/*
+!/docs/ENGINE-REFERENCE.md
+tools/verify-omx-checkpoint.mjs
+tools/build_offline_package.py
+
+# Test of a one-shot maintainer deploy script that lives in evidence/
+/test/stage-f-recovery-boundaries.test.mjs

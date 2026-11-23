@@ -1,0 +1,56 @@
+{
+  "protocolVersion": 1,
+  "engineVersion": "1.2.1-offline",
+  "command": "schedule",
+  "outcome": "ready",
+  "reason": "slot_explanation",
+  "installationId": "install_ui_fixture_01",
+  "observedAt": "2026-11-12T19:00:00.000Z",
+  "scheduleEnabled": true,
+  "scheduleRevision": 1,
+  "timeZoneMode": "local",
+  "weekdays": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "times": [
+    "08:00",
+    "13:00",
+    "18:00"
+  ],
+  "zoneNotice": null,
+  "zone": "Asia/Gaza",
+  "explanation": {
+    "slot": "2026-11-12T18:00",
+    "date": "2026-11-12",
+    "logicalTime": "18:00",
+    "verdict": "not_admitted",
+    "configured": true,
+    "exclusion": null,
+    "admission": "18:00",
+    "admissionAt": 1794499200000,
+    "claim": null,
+    "notAdmitted": {
+      "cause": "no_tick_between",
+      "zone": "Asia/Gaza",
+      "at": 1794510000000,
+      "guidance": "check_job_and_mac_awake"
+    },
+    "activeBatch": false,
+    "batchOutcome": null,
+    "batchFinishedAt": null,
+    "accounts": [],
+    "heartbeat": {
+      "lastTick": 1794510000000,
+      "lastTickZone": "Asia/Gaza",
+      "observedAfterAdmission": true
+    },
+    "windowEffect": "unverified",
+    "retentionDays": 30
+  }
+}

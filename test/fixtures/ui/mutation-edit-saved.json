@@ -1,0 +1,35 @@
+{
+  "protocolVersion": 1,
+  "engineVersion": "1.2.1-offline",
+  "command": "schedule",
+  "outcome": "ready",
+  "reason": "schedule_updated",
+  "installationId": "install_ui_fixture_01",
+  "observedAt": "2026-11-12T19:00:00.000Z",
+  "schedule": {
+    "zone": "Asia/Gaza",
+    "times": [
+      "08:00",
+      "13:00",
+      "18:00"
+    ],
+    "today": {
+      "date": "2026-11-12",
+      "admissions": {
+        "08:00": "08:00",
+        "13:00": "13:00",
+        "18:00": "18:00"
+      }
+    },
+    "weekdays": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "scheduleEnabled": true,
+  "scheduleRevision": 4,
+  "localDate": "2026-11-12"
+}

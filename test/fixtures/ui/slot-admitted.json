@@ -1,0 +1,87 @@
+{
+  "protocolVersion": 1,
+  "engineVersion": "1.2.1-offline",
+  "command": "schedule",
+  "outcome": "ready",
+  "reason": "slot_explanation",
+  "installationId": "install_ui_fixture_01",
+  "observedAt": "2026-11-12T06:00:05.000Z",
+  "scheduleEnabled": true,
+  "scheduleRevision": 1,
+  "timeZoneMode": "local",
+  "weekdays": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "times": [
+    "08:00",
+    "13:00",
+    "18:00"
+  ],
+  "zoneNotice": null,
+  "zone": "Asia/Gaza",
+  "explanation": {
+    "slot": "2026-11-12T08:00",
+    "date": "2026-11-12",
+    "logicalTime": "08:00",
+    "verdict": "admitted",
+    "configured": true,
+    "exclusion": null,
+    "admission": "08:00",
+    "admissionAt": 1794463200000,
+    "claim": {
+      "claimedAt": 1794463205000,
+      "enrollmentIds": [
+        "enr_01",
+        "enr_02"
+      ],
+      "zone": "Asia/Gaza"
+    },
+    "notAdmitted": null,
+    "activeBatch": false,
+    "batchOutcome": "success",
+    "batchFinishedAt": 1794463205000,
+    "accounts": [
+      {
+        "enrollmentId": "enr_01",
+        "known": true,
+        "outcome": "success",
+        "reason": "marker_confirmed",
+        "at": 1794463205000,
+        "skipped": false,
+        "possibleSend": true,
+        "reservationUnresolved": false,
+        "dispatch": "confirmed",
+        "response": "confirmed",
+        "windowEffect": "unverified",
+        "guidance": "none"
+      },
+      {
+        "enrollmentId": "enr_02",
+        "known": true,
+        "outcome": "success",
+        "reason": "marker_confirmed",
+        "at": 1794463205000,
+        "skipped": false,
+        "possibleSend": true,
+        "reservationUnresolved": false,
+        "dispatch": "confirmed",
+        "response": "confirmed",
+        "windowEffect": "unverified",
+        "guidance": "none"
+      }
+    ],
+    "heartbeat": {
+      "lastTick": 1794463205000,
+      "lastTickZone": "Asia/Gaza",
+      "observedAfterAdmission": false
+    },
+    "windowEffect": "unverified",
+    "retentionDays": 30
+  }
+}

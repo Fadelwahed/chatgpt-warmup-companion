@@ -1,0 +1,469 @@
+{
+  "protocolVersion": 1,
+  "engineVersion": "1.2.1-offline",
+  "command": "schedule",
+  "outcome": "ready",
+  "reason": "schedule_projection",
+  "installationId": "install_ui_fixture_01",
+  "observedAt": "2026-11-12T04:00:00.000Z",
+  "scheduleEnabled": true,
+  "scheduleRevision": 1,
+  "timeZoneMode": "local",
+  "weekdays": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "times": [
+    "08:00",
+    "13:00",
+    "18:00"
+  ],
+  "zoneNotice": null,
+  "localDate": "2026-11-12",
+  "zone": "Asia/Gaza",
+  "accounts": [
+    "enr_01",
+    "enr_02"
+  ],
+  "days": [
+    {
+      "date": "2026-11-12",
+      "weekday": 4,
+      "source": "recurring",
+      "exclusion": null,
+      "admissions": [
+        {
+          "slot": "2026-11-12T08:00",
+          "logicalTime": "08:00",
+          "admission": "08:00",
+          "at": 1794463200000,
+          "state": "upcoming",
+          "next": true
+        },
+        {
+          "slot": "2026-11-12T13:00",
+          "logicalTime": "13:00",
+          "admission": "13:00",
+          "at": 1794481200000,
+          "state": "upcoming"
+        },
+        {
+          "slot": "2026-11-12T18:00",
+          "logicalTime": "18:00",
+          "admission": "18:00",
+          "at": 1794499200000,
+          "state": "upcoming"
+        }
+      ],
+      "attemptsPerAccount": 3,
+      "configuredAttempts": 6
+    },
+    {
+      "date": "2026-11-13",
+      "weekday": 5,
+      "source": "recurring",
+      "exclusion": null,
+      "admissions": [
+        {
+          "slot": "2026-11-13T08:00",
+          "logicalTime": "08:00",
+          "admission": "08:00",
+          "at": 1794549600000,
+          "state": "upcoming"
+        },
+        {
+          "slot": "2026-11-13T13:00",
+          "logicalTime": "13:00",
+          "admission": "13:00",
+          "at": 1794567600000,
+          "state": "upcoming"
+        },
+        {
+          "slot": "2026-11-13T18:00",
+          "logicalTime": "18:00",
+          "admission": "18:00",
+          "at": 1794585600000,
+          "state": "upcoming"
+        }
+      ],
+      "attemptsPerAccount": 3,
+      "configuredAttempts": 6
+    },
+    {
+      "date": "2026-11-14",
+      "weekday": 6,
+      "source": "recurring",
+      "exclusion": null,
+      "admissions": [
+        {
+          "slot": "2026-11-14T08:00",
+          "logicalTime": "08:00",
+          "admission": "08:00",
+          "at": 1794636000000,
+          "state": "upcoming"
+        },
+        {
+          "slot": "2026-11-14T13:00",
+          "logicalTime": "13:00",
+          "admission": "13:00",
+          "at": 1794654000000,
+          "state": "upcoming"
+        },
+        {
+          "slot": "2026-11-14T18:00",
+          "logicalTime": "18:00",
+          "admission": "18:00",
+          "at": 1794672000000,
+          "state": "upcoming"
+        }
+      ],
+      "attemptsPerAccount": 3,
+      "configuredAttempts": 6
+    },
+    {
+      "date": "2026-11-15",
+      "weekday": 7,
+      "source": "recurring",
+      "exclusion": null,
+      "admissions": [
+        {
+          "slot": "2026-11-15T08:00",
+          "logicalTime": "08:00",
+          "admission": "08:00",
+          "at": 1794722400000,
+          "state": "upcoming"
+        },
+        {
+          "slot": "2026-11-15T13:00",
+          "logicalTime": "13:00",
+          "admission": "13:00",
+          "at": 1794740400000,
+          "state": "upcoming"
+        },
+        {
+          "slot": "2026-11-15T18:00",
+          "logicalTime": "18:00",
+          "admission": "18:00",
+          "at": 1794758400000,
+          "state": "upcoming"
+        }
+      ],
+      "attemptsPerAccount": 3,
+      "configuredAttempts": 6
+    },
+    {
+      "date": "2026-11-16",
+      "weekday": 1,
+      "source": "recurring",
+      "exclusion": null,
+      "admissions": [
+        {
+          "slot": "2026-11-16T08:00",
+          "logicalTime": "08:00",
+          "admission": "08:00",
+          "at": 1794808800000,
+          "state": "upcoming"
+        },
+        {
+          "slot": "2026-11-16T13:00",
+          "logicalTime": "13:00",
+          "admission": "13:00",
+          "at": 1794826800000,
+          "state": "upcoming"
+        },
+        {
+          "slot": "2026-11-16T18:00",
+          "logicalTime": "18:00",
+          "admission": "18:00",
+          "at": 1794844800000,
+          "state": "upcoming"
+        }
+      ],
+      "attemptsPerAccount": 3,
+      "configuredAttempts": 6
+    },
+    {
+      "date": "2026-11-17",
+      "weekday": 2,
+      "source": "recurring",
+      "exclusion": null,
+      "admissions": [
+        {
+          "slot": "2026-11-17T08:00",
+          "logicalTime": "08:00",
+          "admission": "08:00",
+          "at": 1794895200000,
+          "state": "upcoming"
+        },
+        {
+          "slot": "2026-11-17T13:00",
+          "logicalTime": "13:00",
+          "admission": "13:00",
+          "at": 1794913200000,
+          "state": "upcoming"
+        },
+        {
+          "slot": "2026-11-17T18:00",
+          "logicalTime": "18:00",
+          "admission": "18:00",
+          "at": 1794931200000,
+          "state": "upcoming"
+        }
+      ],
+      "attemptsPerAccount": 3,
+      "configuredAttempts": 6
+    },
+    {
+      "date": "2026-11-18",
+      "weekday": 3,
+      "source": "recurring",
+      "exclusion": null,
+      "admissions": [
+        {
+          "slot": "2026-11-18T08:00",
+          "logicalTime": "08:00",
+          "admission": "08:00",
+          "at": 1794981600000,
+          "state": "upcoming"
+        },
+        {
+          "slot": "2026-11-18T13:00",
+          "logicalTime": "13:00",
+          "admission": "13:00",
+          "at": 1794999600000,
+          "state": "upcoming"
+        },
+        {
+          "slot": "2026-11-18T18:00",
+          "logicalTime": "18:00",
+          "admission": "18:00",
+          "at": 1795017600000,
+          "state": "upcoming"
+        }
+      ],
+      "attemptsPerAccount": 3,
+      "configuredAttempts": 6
+    }
+  ],
+  "next": {
+    "slot": "2026-11-12T08:00",
+    "admission": "08:00",
+    "date": "2026-11-12",
+    "at": 1794463200000
+  },
+  "proposal": {
+    "action": "weekdays",
+    "days": [
+      {
+        "date": "2026-11-12",
+        "weekday": 4,
+        "source": "edit_date",
+        "exclusion": null,
+        "admissions": [
+          {
+            "slot": "2026-11-12T08:00",
+            "logicalTime": "08:00",
+            "admission": "08:00",
+            "at": 1794463200000,
+            "state": "upcoming",
+            "next": true
+          },
+          {
+            "slot": "2026-11-12T13:00",
+            "logicalTime": "13:00",
+            "admission": "13:00",
+            "at": 1794481200000,
+            "state": "upcoming"
+          },
+          {
+            "slot": "2026-11-12T18:00",
+            "logicalTime": "18:00",
+            "admission": "18:00",
+            "at": 1794499200000,
+            "state": "upcoming"
+          }
+        ],
+        "attemptsPerAccount": 3,
+        "configuredAttempts": 6
+      },
+      {
+        "date": "2026-11-13",
+        "weekday": 5,
+        "source": "recurring",
+        "exclusion": null,
+        "admissions": [
+          {
+            "slot": "2026-11-13T08:00",
+            "logicalTime": "08:00",
+            "admission": "08:00",
+            "at": 1794549600000,
+            "state": "upcoming"
+          },
+          {
+            "slot": "2026-11-13T13:00",
+            "logicalTime": "13:00",
+            "admission": "13:00",
+            "at": 1794567600000,
+            "state": "upcoming"
+          },
+          {
+            "slot": "2026-11-13T18:00",
+            "logicalTime": "18:00",
+            "admission": "18:00",
+            "at": 1794585600000,
+            "state": "upcoming"
+          }
+        ],
+        "attemptsPerAccount": 3,
+        "configuredAttempts": 6
+      },
+      {
+        "date": "2026-11-14",
+        "weekday": 6,
+        "source": "recurring",
+        "exclusion": "weekday",
+        "admissions": [],
+        "attemptsPerAccount": 0,
+        "configuredAttempts": 0
+      },
+      {
+        "date": "2026-11-15",
+        "weekday": 7,
+        "source": "recurring",
+        "exclusion": "weekday",
+        "admissions": [],
+        "attemptsPerAccount": 0,
+        "configuredAttempts": 0
+      },
+      {
+        "date": "2026-11-16",
+        "weekday": 1,
+        "source": "recurring",
+        "exclusion": null,
+        "admissions": [
+          {
+            "slot": "2026-11-16T08:00",
+            "logicalTime": "08:00",
+            "admission": "08:00",
+            "at": 1794808800000,
+            "state": "upcoming"
+          },
+          {
+            "slot": "2026-11-16T13:00",
+            "logicalTime": "13:00",
+            "admission": "13:00",
+            "at": 1794826800000,
+            "state": "upcoming"
+          },
+          {
+            "slot": "2026-11-16T18:00",
+            "logicalTime": "18:00",
+            "admission": "18:00",
+            "at": 1794844800000,
+            "state": "upcoming"
+          }
+        ],
+        "attemptsPerAccount": 3,
+        "configuredAttempts": 6
+      },
+      {
+        "date": "2026-11-17",
+        "weekday": 2,
+        "source": "recurring",
+        "exclusion": null,
+        "admissions": [
+          {
+            "slot": "2026-11-17T08:00",
+            "logicalTime": "08:00",
+            "admission": "08:00",
+            "at": 1794895200000,
+            "state": "upcoming"
+          },
+          {
+            "slot": "2026-11-17T13:00",
+            "logicalTime": "13:00",
+            "admission": "13:00",
+            "at": 1794913200000,
+            "state": "upcoming"
+          },
+          {
+            "slot": "2026-11-17T18:00",
+            "logicalTime": "18:00",
+            "admission": "18:00",
+            "at": 1794931200000,
+            "state": "upcoming"
+          }
+        ],
+        "attemptsPerAccount": 3,
+        "configuredAttempts": 6
+      },
+      {
+        "date": "2026-11-18",
+        "weekday": 3,
+        "source": "recurring",
+        "exclusion": null,
+        "admissions": [
+          {
+            "slot": "2026-11-18T08:00",
+            "logicalTime": "08:00",
+            "admission": "08:00",
+            "at": 1794981600000,
+            "state": "upcoming"
+          },
+          {
+            "slot": "2026-11-18T13:00",
+            "logicalTime": "13:00",
+            "admission": "13:00",
+            "at": 1794999600000,
+            "state": "upcoming"
+          },
+          {
+            "slot": "2026-11-18T18:00",
+            "logicalTime": "18:00",
+            "admission": "18:00",
+            "at": 1795017600000,
+            "state": "upcoming"
+          }
+        ],
+        "attemptsPerAccount": 3,
+        "configuredAttempts": 6
+      }
+    ],
+    "today": false,
+    "preview": false,
+    "localDate": "2026-11-12",
+    "expectedRevision": 1,
+    "scheduleEnabled": true,
+    "scheduleRevision": 1,
+    "timeZoneMode": "local",
+    "weekdays": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "times": [
+      "08:00",
+      "13:00",
+      "18:00"
+    ],
+    "zoneNotice": null,
+    "zone": "Asia/Gaza",
+    "accounts": [
+      "enr_01",
+      "enr_02"
+    ],
+    "next": {
+      "slot": "2026-11-12T08:00",
+      "admission": "08:00",
+      "date": "2026-11-12",
+      "at": 1794463200000
+    }
+  }
+}

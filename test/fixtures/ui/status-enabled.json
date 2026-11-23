@@ -1,0 +1,103 @@
+{
+  "protocolVersion": 1,
+  "engineVersion": "1.2.1-offline",
+  "command": "status",
+  "outcome": "ready",
+  "reason": "status",
+  "installationId": "install_ui_fixture_01",
+  "observedAt": "2026-11-12T04:00:00.000Z",
+  "schedule": {
+    "zone": "Asia/Gaza",
+    "times": [
+      "08:00",
+      "13:00",
+      "18:00"
+    ]
+  },
+  "scheduleEnabled": true,
+  "scheduleRevision": 1,
+  "job": "loaded",
+  "compatibility": "ready",
+  "lastTick": null,
+  "lastTickZone": null,
+  "timeZoneMode": "local",
+  "zoneChange": null,
+  "slotLedger": [],
+  "compatibilityBlockedSince": null,
+  "slotObservation": null,
+  "next": {
+    "slot": "2026-11-12T08:00",
+    "admission": "08:00",
+    "date": "2026-11-12",
+    "at": 1794463200000
+  },
+  "accounts": [
+    {
+      "enrollmentId": "enr_01",
+      "block": null,
+      "cooldownUntil": null,
+      "usage": null
+    },
+    {
+      "enrollmentId": "enr_02",
+      "block": null,
+      "cooldownUntil": null,
+      "usage": null
+    }
+  ],
+  "activeBatch": null,
+  "workLock": {
+    "state": "free",
+    "since": null
+  },
+  "usageTruncated": false,
+  "scheduledAccounts": null,
+  "caps": {},
+  "undoAvailable": false,
+  "clockHold": null,
+  "lastSlotOutcome": null,
+  "blockedSlots": [],
+  "enrolled": 2,
+  "enabled": 2,
+  "pilots": 2,
+  "recent": [
+    {
+      "enrollmentId": "enr_01",
+      "outcome": "success",
+      "reason": "marker_confirmed",
+      "at": 1794456000000
+    },
+    {
+      "enrollmentId": "enr_02",
+      "outcome": "success",
+      "reason": "marker_confirmed",
+      "at": 1794456000000
+    }
+  ],
+  "historyTruncated": false,
+  "unresolved": [],
+  "unresolvedTruncated": false,
+  "capability": {
+    "version": 1,
+    "features": [
+      "expected_installation_id",
+      "expected_revision",
+      "expected_local_date",
+      "schedule_inspect",
+      "schedule_weekdays",
+      "slot_explanation",
+      "scoped_slot_overlap",
+      "work_lock_status",
+      "usage_windows",
+      "schedule_vacations",
+      "scheduled_accounts",
+      "schedule_undo",
+      "daily_caps"
+    ]
+  },
+  "engine": {
+    "nodePath": "/opt/homebrew/opt/node@22/bin/node",
+    "scriptPath": "<repo>/warmup.mjs"
+  },
+  "recovery": "none"
+}

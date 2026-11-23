@@ -1500,13 +1500,14 @@ struct AccountsPane: View {
             let zone = self.model.status?.schedule.zone ?? TimeZone.current.identifier
             Table(self.model.accounts?.rows ?? [], selection: self.$selection) {
                 TableColumn("Account") { row in AccountNameCell(model: self.model, row: row) }
-                    // Room for "Not added yet · Account 2" on the second line (0.6.4).
-                    .width(min: 160, ideal: 230)
+                    // Room for "Ready · Account 2"; longer states truncate first (0.6.4). The ideal widths
+                    // add up to fit the default window with the actions column whole (0.6.5).
+                    .width(min: 160, ideal: 200)
                 TableColumn("Last warm-up") { row in
                     let text = AccountText.last(row, zone: zone)
                     Text(text).lineLimit(2).fixedSize(horizontal: false, vertical: true).help(text)
                 }
-                .width(min: 120, ideal: 170)
+                .width(min: 120, ideal: 160)
                 TableColumn("5-hour window") { row in UsageCellView(model: self.model, row: row) }
                     .width(min: 150, ideal: 180)
                 TableColumn("Scheduled") { row in

@@ -119,7 +119,7 @@ import Testing
         defer { try? FileManager.default.removeItem(at: directory) }
         let store = AlertOutboxStore(directory: directory)
         #expect(store.file.lastPathComponent == "pending-alerts.json")
-        #expect(store.limit == 64 << 10)
+        #expect(store.limit == 256 << 10)
         let missed = try self.status { $0["slotLedger"] = [ProblemAlerts.ledger("2026-11-12T18:00")] }
         var tracker = AlertTracker()
         tracker.arm(at: Self.miss - 3_600_000)

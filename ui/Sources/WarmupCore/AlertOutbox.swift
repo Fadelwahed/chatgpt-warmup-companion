@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 // 060-FIX7 item 1: the outbox is the one record of what is owed, one entry per slot. An entry leaves
@@ -72,15 +73,25 @@ public struct AlertOutbox: Sendable, Equatable, Codable {
     public static let unsavedIssue = "Alerts could not be saved; they will be retried."
 
     public let entries: [PendingAlert]
+    /// `AlertScope.fingerprint` of the installation these entries belong to; nil in a 0.6.5 file.
+    public let installation: String?
 
-    public init(entries: [PendingAlert] = []) {
+    public init(entries: [PendingAlert] = [], installation: String? = nil) {
         self.entries = entries
+        self.installation = installation
     }
 
     /// Entries with a malformed key are left out, so they can never hold the cursor back.
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.init(entries: try container.decode([PendingAlert].self, forKey: .entries).filter(\.isWellFormed))
+        self.init(
+            entries: try container.decode([PendingAlert].self, forKey: .entries).filter(\.isWellFormed),
+            installation: try container.decodeIfPresent(String.self, forKey: .installation))
+    }
+
+    /// The same entries, scoped to `installation`.
+    public func scoped(to installation: String?) -> AlertOutbox {
+        AlertOutbox(entries: self.entries, installation: installation)
     }
 
     public var isEmpty: Bool { self.entries.isEmpty }
@@ -93,13 +104,14 @@ public struct AlertOutbox: Sendable, Equatable, Codable {
     /// and the outbox returned unchanged. Check `contains(slot:)` to see whether it is owed now.
     public func adding(_ entry: PendingAlert) -> AlertOutbox {
         guard !self.contains(slot: entry.slot), self.entries.count < Self.limit else { return self }
-        return AlertOutbox(entries: self.entries + [entry])
+        return AlertOutbox(entries: self.entries + [entry], installation: self.installation)
     }
 
     /// Removes exactly the entries with these keys.
     public func removing(slots: [String]) -> AlertOutbox {
         let delivered = Set(slots)
-        return AlertOutbox(entries: self.entries.filter { !delivered.contains($0.slot) })
+        return AlertOutbox(
+            entries: self.entries.filter { !delivered.contains($0.slot) }, installation: self.installation)
     }
 
     /// What one delivery attempt sends: every slot entry as one notification, then the notice.
@@ -124,10 +136,41 @@ public struct AlertOutbox: Sendable, Equatable, Codable {
     }
 }
 
+/// Saved alert state (cursor, announced slots, outbox) belongs to one engine installation. It is
+/// stored under a fingerprint, never the raw ID, which stays in the binding file only.
+public enum AlertScope {
+    /// What to do with the saved alert state before arming or observing.
+    public enum Decision: Sendable, Equatable {
+        /// Same installation: keep everything.
+        case keep
+        /// Nothing stored yet (upgrade from 0.6.5): keep the state and store this fingerprint.
+        case adopt(String)
+        /// Another installation: clear cursor, announced slots and outbox, arm from now, store this.
+        case reset(String)
+        /// The installation is not known (binding unreadable): keep the state, deliver nothing yet.
+        case unbound
+    }
+
+    /// The first 16 hex characters of SHA-256 over the installation ID.
+    public static func fingerprint(installation: String) -> String {
+        SHA256.hash(data: Data(installation.utf8)).map { String(format: "%02x", $0) }.joined().prefix(16)
+            .description
+    }
+
+    /// `current` is the fingerprint of the bound or observed installation; `stored` the saved one;
+    /// `outbox` the outbox file's (nil in a file without one).
+    public static func decide(current: String?, stored: String?, outbox: String?) -> Decision {
+        guard let current else { return .unbound }
+        if let stored, stored != current { return .reset(current) }
+        if let outbox, outbox != current { return .reset(current) }
+        return stored == nil ? .adopt(current) : .keep
+    }
+}
+
 public typealias AlertOutboxStore = PrivateJSONStore<AlertOutbox>
 
 extension PrivateJSONStore where Value == AlertOutbox {
-    public static var maxBytes: Int { 64 << 10 }
+    public static var maxBytes: Int { 256 << 10 }
     public init(directory: URL) {
         self.init(directory: directory, name: "pending-alerts.json", limit: Self.maxBytes) { AlertOutbox() }
     }

@@ -12,6 +12,12 @@ A native macOS menu-bar companion for the existing Warm-up CLI. The CLI and its 
 - **Schedule:** today plus six days from `schedule inspect`, with weekday exclusions, repeated or nonexistent DST minutes and the next admission. Selecting a slot runs `schedule inspect --slot`. The detail separates whether a request was sent, whether a response was confirmed and the guidance. It always shows "Usage window effect unverified". **Copy redacted summary** copies reason codes and times only: no installation ID, account IDs or tokens.
 - **Accounts:** rows from `list`, which reads Router's registry without credentials or network.
 
+## Version 0.6.6 (24 November 2026): safer copied summaries and alerts after a rebind
+
+- **Copy Summary:** every engine value in a copied slot summary is checked against the codes the engine is known to send; anything else prints `other` or `unknown`, so no unexpected text can leak into a copied summary.
+- **Alerts:** saved alert state (covered time, announced slots, pending alerts) now belongs to the engine installation the app is bound to. After a rebind to a different installation it is cleared and alerts start fresh, so an old alert is never delivered and a new one never suppressed. A rebind to the same installation, such as an engine update, keeps everything.
+- **Pending alerts** may use up to 256 KB (was 64 KB).
+
 ## Version 0.6.5 (23 November 2026): Accounts fits the default window again
 
 - **Accounts:** 0.6.4's wider Account column pushed the "…" actions button past the right edge at the default width. The Account and Last warm-up columns are slightly narrower again, so every column fits.

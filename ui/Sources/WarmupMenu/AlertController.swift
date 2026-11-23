@@ -14,6 +14,8 @@ import WarmupCore
 /// or failed submission never loses one. Only accepted slots are announced, stored and released from
 /// the tracker (060-FIX7 item 1). A slot not yet delivered keeps the stored cursor before it, so one
 /// whose save failed is found again after a relaunch; the save failure is reported as the alert issue.
+/// That saved state belongs to one engine installation (`alertsInstallation`, a fingerprint): a rebind
+/// to another installation clears it (`AlertScope`).
 @MainActor
 final class AlertController: NSObject, ObservableObject {
     static let preferenceKey = "alertsEnabled"
@@ -21,6 +23,8 @@ final class AlertController: NSObject, ObservableObject {
     static let coveredThroughKey = "alertsCoveredThrough"
     /// Slot labels macOS accepted (`2026-11-22T13:00`), stored after each successful delivery; no IDs.
     static let announcedKey = "alertsAnnouncedSlots"
+    /// `AlertScope.fingerprint` of the installation the saved alert state belongs to; never the raw ID.
+    static let installationKey = "alertsInstallation"
     static let notAllowed = "Alerts are on, but notifications are not allowed for Warm-up. You can allow them in System Settings > Notifications."
     static let notAsked =
         "Alerts are on, but Warm-up has not been allowed to notify yet. Switch alerts off and on to be asked."
@@ -53,6 +57,12 @@ final class AlertController: NSObject, ObservableObject {
     private var generation = 0
     /// The latest status observation; each one waits for the previous to finish.
     private var observation: Task<Void, Never>?
+    /// Fingerprint of the bound installation at launch; nil when the binding cannot be read.
+    private let boundInstallation: String?
+    /// The installation the saved state is scoped to; nil until known.
+    private var armedInstallation: String?
+    /// The binding was unreadable at arm: the stored outbox waits for the first observation.
+    private var holdDelivery = false
 
     /// Notifications need the installed app bundle; a bare executable has no notification identity.
     let available = Bundle.main.bundleURL.pathExtension == "app" && Bundle.main.bundleIdentifier != nil
@@ -64,6 +74,9 @@ final class AlertController: NSObject, ObservableObject {
         self.model = model
         self.defaults = defaults
         self.outboxStore = outboxStore
+        self.boundInstallation = (try? BindingStore.defaultStore()?.load()).map {
+            AlertScope.fingerprint(installation: $0.installationId)
+        }
         self.enabled = defaults.bool(forKey: Self.preferenceKey)
         super.init()
         model.setAlertsOn(self.enabled)
@@ -88,7 +101,7 @@ final class AlertController: NSObject, ObservableObject {
             await self.checkPermission()
             guard self.allowed else { return }
             self.model.replayStatus()
-            self.enqueueFlush()  // delivers the stored outbox even before a status arrives
+            if !self.holdDelivery { self.enqueueFlush() }  // delivers the stored outbox even before a status arrives
         }
     }
 
@@ -96,18 +109,67 @@ final class AlertController: NSObject, ObservableObject {
     /// slots already announced, so a cursor left behind by a failed catch-up does not repeat them.
     /// With nothing stored, the arm time is stored at once, so a quit before the first observation
     /// still resumes from it. The stored outbox is loaded and delivered with the first observation
-    /// (or once permission is confirmed), independent of the cursor.
+    /// (or once permission is confirmed), independent of the cursor. State saved for another
+    /// installation is cleared first, so alerts arm from now.
     private func arm() {
+        let saved = self.outboxStore?.load() ?? AlertOutbox()
+        let decision = AlertScope.decide(
+            current: self.boundInstallation, stored: self.defaults.string(forKey: Self.installationKey),
+            outbox: saved.installation)
+        self.holdDelivery = decision == .unbound
+        self.armedInstallation = self.holdDelivery ? nil : self.boundInstallation
+        let reset = self.applyScope(decision)
         let stored = self.defaults.object(forKey: Self.coveredThroughKey) as? Int
         let announced = self.defaults.stringArray(forKey: Self.announcedKey) ?? []
         let armedAt = AlertResume.start(stored: stored, now: Self.now())
         self.tracker.arm(at: armedAt, announced: announced)
         // A slot macOS already accepted while saves failed is dropped, so it is never sent again.
-        let loaded = self.outboxStore?.load() ?? AlertOutbox()
-        self.outbox = loaded.removing(slots: announced)
+        let loaded = reset ? AlertOutbox() : saved
+        self.outbox = loaded.removing(slots: announced).scoped(to: self.armedInstallation ?? loaded.installation)
         if self.outbox != loaded { self.saveOutbox() }
         if let initial = AlertResume.initialStore(stored: stored, armedAt: armedAt) {
             self.defaults.set(initial, forKey: Self.coveredThroughKey)
+        }
+    }
+
+    /// Applies a scope decision to the saved state; true when it was cleared. A reset clears the
+    /// cursor, announced slots and outbox (as switching off does) while alerts stay on.
+    private func applyScope(_ decision: AlertScope.Decision) -> Bool {
+        switch decision {
+        case .keep, .unbound:
+            return false
+        case let .adopt(fingerprint):
+            self.armedInstallation = fingerprint
+            self.defaults.set(fingerprint, forKey: Self.installationKey)
+            return false
+        case let .reset(fingerprint):
+            self.armedInstallation = fingerprint
+            self.defaults.set(fingerprint, forKey: Self.installationKey)
+            self.defaults.removeObject(forKey: Self.coveredThroughKey)
+            self.defaults.removeObject(forKey: Self.announcedKey)
+            self.outbox = AlertOutbox(installation: fingerprint)
+            self.outboxStore?.remove()
+            self.refused = false
+            self.storageIssue = nil
+            self.showStorageIssue()
+            return true
+        }
+    }
+
+    /// Before observing another installation than the armed one: keep or clear the saved state. After
+    /// a reset the tracker baselines the new installation whole.
+    private func scope(to installation: String) {
+        let fingerprint = AlertScope.fingerprint(installation: installation)
+        self.holdDelivery = false
+        guard fingerprint != self.armedInstallation else { return }
+        let decision = AlertScope.decide(
+            current: fingerprint, stored: self.defaults.string(forKey: Self.installationKey),
+            outbox: self.outbox.installation)
+        if self.applyScope(decision) {
+            self.tracker.reset()
+        } else {
+            self.armedInstallation = fingerprint
+            self.outbox = self.outbox.scoped(to: fingerprint)
         }
     }
 
@@ -168,7 +230,7 @@ final class AlertController: NSObject, ObservableObject {
         guard generation == self.generation, self.enabled else { return }
         self.allowed = status == .authorized || status == .provisional
         self.issue = self.allowed ? self.storageIssue : status == .notDetermined ? Self.notAsked : Self.notAllowed
-        if self.allowed && !self.outbox.isEmpty { self.enqueueFlush() }
+        if self.allowed && !self.outbox.isEmpty && !self.holdDelivery { self.enqueueFlush() }
     }
 
     private func startTimer() {
@@ -206,6 +268,7 @@ final class AlertController: NSObject, ObservableObject {
     private func observe(installation: String, status: EngineStatus) {
         guard self.enabled, self.allowed else { return }
         self.enqueue { generation in
+            self.scope(to: installation)
             var history: HistoryReply?
             if let since = self.tracker.historyNeeded(installation: installation, status: status) {
                 let requestedAt = Self.now()

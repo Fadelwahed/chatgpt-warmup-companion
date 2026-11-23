@@ -260,23 +260,85 @@ public enum VersionText {
 }
 
 /// A copyable, redacted summary of one slot explanation. It contains reason codes, local
-/// times and per-account ordinals only: no installation ID, account names or tokens.
+/// times and per-account ordinals only: no installation ID, account names or tokens. Every engine
+/// string passes an allowlist: a code outside its set prints `other`, a malformed slot, time, zone
+/// or version prints `unknown`, so no engine reply can put free text into the copied summary.
 public enum SlotDiagnostic {
+    // Closed code sets, from engine 1.2.x `runtime.mjs` (`slotExplanation`, `GUIDANCE`, `LEDGER_CAUSES`,
+    // reader and probe reasons) and `chatgpt-probe.mjs`.
+    static let verdicts: Set<String> = [
+        "admitted", "in_progress", "not_admitted", "unknown", "excluded", "not_configured",
+        "nonexistent_local_time", "scheduled", "unobserved",
+    ]
+    static let causes: Set<String> = [
+        "zone_changed", "schedule_disabled", "compatibility_blocked", "recovery_skip_through", "clock_hold",
+        "manual_run_overlap", "no_tick_between", "schedule_spacing", "no_scheduled_accounts",
+    ]
+    static let exclusions: Set<String> = ["vacation", "weekday"]
+    static let dispatches: Set<String> = ["confirmed", "unknown", "ruled_out", "pending"]
+    static let responses: Set<String> = ["unobserved", "confirmed", "uncertain", "failed"]
+    static let reasons: Set<String> = [
+        "success", "marker_confirmed", "pilot_required", "correction_required", "cooldown",
+        "compatibility_blocked", "schedule_disabled", "no_tick_between", "clock_hold", "zone_changed",
+        "manual_run_overlap", "schedule_spacing", "recovery_skip_through", "batch_deadline_or_clock",
+        "batch_unprocessed", "reader_global_block", "reader_unavailable", "credential_expired_or_unknown",
+        "already_reserved", "probe_result_untrusted", "stream_or_transport_uncertain", "deadline_exceeded",
+        "deadline_before_send", "transport_before_send", "transport_unavailable", "redirect_refused",
+        "rate_limited", "upstream_rejected", "authentication_rejected", "forbidden_or_challenged",
+        "unsupported_model", "protocol_failure", "output_mismatch", "invalid_probe", "registry_ineligible",
+        "login_lease", "primary_untrusted", "saved_untrusted", "identity_ambiguous", "identity_mismatch",
+        "invalid_enrollment", "invalid_router_account_id", "snapshot_changed", "send_check_failed",
+        "daily_cap_reached", "no_scheduled_accounts",
+    ]
+    static let guidances: Set<String> = [
+        "none", "run_manual_pilot", "review_account_block", "wait_for_cooldown", "review_source_compatibility",
+        "resume_schedule_if_intended", "check_job_and_mac_awake", "review_clock", "review_time_zone",
+        "review_schedule_spacing", "review_history", "review_router_state", "refresh_router_login",
+        "outcome_unknown_no_resend", "check_network", "retry_after_router_login", "review_unresolved_reservation",
+    ]
+    static let windowEffects: Set<String> = ["unverified"]
+
+    // Pattern-checked fields; ASCII digits only.
+    static var slotPattern: Regex<Substring> { #/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}/# }
+    static var timePattern: Regex<Substring> { #/[0-9]{2}:[0-9]{2}/# }
+    static var versionPattern: Regex<(Substring, Substring?)> { #/[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+)?/# }
+
     public static func text(_ result: SlotExplanationResult, engineVersion: String?) -> String {
         let e = result.explanation
+        let slot = Self.matching(e.slot, Self.slotPattern)
+        // A real time zone only (as the CLI checks), so a token-shaped value is never copied.
+        let zone = StatusCLI.isZone(result.zone) ? result.zone : "unknown"
+        let verdict = Self.code(e.verdict, in: Self.verdicts)
+        let cause = e.notAdmitted.map { " — " + Self.code($0.cause, in: Self.causes) } ?? ""
+        let exclusion = e.exclusion.map { ", excluded (\(Self.code($0, in: Self.exclusions)))" } ?? ""
+        let admission = e.admission.map { Self.matching($0, Self.timePattern) } ?? "unknown"
         var lines = [
-            "Warm-up slot \(e.slot) (\(result.zone))",
-            "Verdict: \(e.verdict)" + (e.notAdmitted.map { " — \($0.cause)" } ?? ""),
-            "Configured now: \(e.configured.map { $0 ? "yes" : "no" } ?? "unknown")" + (e.exclusion.map { ", excluded (\($0))" } ?? ""),
-            "Admission: \(e.admission ?? "unknown")",
+            "Warm-up slot \(slot) (\(zone))",
+            "Verdict: \(verdict)" + cause,
+            "Configured now: \(e.configured.map { $0 ? "yes" : "no" } ?? "unknown")" + exclusion,
+            "Admission: \(admission)",
             "Heartbeat after admission minute: \(e.heartbeat.observedAfterAdmission.map { $0 ? "yes" : "no" } ?? "unknown")",
         ]
         for (index, account) in e.accounts.enumerated() {
-            lines.append("Account \(index + 1): dispatch=\(account.dispatch) response=\(account.response) reason=\(account.reason ?? "none") guidance=\(account.guidance)")
+            let dispatch = Self.code(account.dispatch, in: Self.dispatches)
+            let response = Self.code(account.response, in: Self.responses)
+            let reason = account.reason.map { Self.code($0, in: Self.reasons) } ?? "none"
+            let guidance = Self.code(account.guidance, in: Self.guidances)
+            lines.append(
+                "Account \(index + 1): dispatch=\(dispatch) response=\(response) reason=\(reason) guidance=\(guidance)")
         }
         if e.accounts.isEmpty { lines.append("Accounts: none recorded") }
-        lines.append("Usage window effect: \(e.windowEffect)")
-        lines.append("Engine: \(engineVersion ?? "unknown"); evidence retained \(e.retentionDays) days")
+        lines.append("Usage window effect: \(Self.code(e.windowEffect, in: Self.windowEffects))")
+        let engine = engineVersion.map { Self.matching($0, Self.versionPattern) } ?? "unknown"
+        lines.append("Engine: \(engine); evidence retained \(e.retentionDays) days")
         return lines.joined(separator: "\n")
+    }
+
+    static func code(_ value: String, in known: Set<String>) -> String {
+        known.contains(value) ? value : "other"
+    }
+
+    static func matching<Output>(_ value: String, _ pattern: Regex<Output>) -> String {
+        (try? pattern.wholeMatch(in: value)) != nil ? value : "unknown"
     }
 }

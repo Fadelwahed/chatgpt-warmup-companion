@@ -805,7 +805,11 @@ async function guarded(base, marker, services, lifecycle, fn) {
 
 function contextFor(data) { return { paths: data.config.paths, compatibility: data.compatibility }; }
 function pruneLedger(state, cutoff) {
-  for (const [slot, row] of Object.entries(state.slotLedger ?? {})) if (row.at < cutoff) delete state.slotLedger[slot];
+  if (!(Math.abs(cutoff) < 8e15)) return;  // false for NaN and Infinity; keeps the Date range valid
+  // Rows for past admissions can be written long after them, so the admission date, not row.at, decides;
+  // a date a whole day before the cutoff's UTC date is beyond status retention in every zone.
+  const lastDate = new Date(cutoff - 86400000).toISOString().slice(0, 10);
+  for (const slot of Object.keys(state.slotLedger ?? {})) if (slot.slice(0, 10) < lastDate) delete state.slotLedger[slot];
 }
 // Bounds state growth: resolved reservations and slot claims older than the cutoff go. Unresolved
 // reservations stay, and so do the claims (and their reservations) that highWater, the active batch

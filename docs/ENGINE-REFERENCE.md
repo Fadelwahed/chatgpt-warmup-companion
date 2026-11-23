@@ -34,6 +34,10 @@ Manual runs work with scheduling disabled and without an earlier pilot, subject 
 
 Each command emits one bounded protocolVersion-1 JSON object with command, outcome, sanitized reason, installationId, engineVersion and observedAt. `run` also always reports selected, attempted and individual results. Attempted counts transport dispatches, not reservations, success or quota spent.
 
+### Engine 1.2.3-offline (23 November 2026)
+
+Slot ledger rows now expire by their admission date, a day beyond the 30-day retention status uses, instead of by when they were written, so a row written late for an old admission (after a long pause or a catch-up) no longer outlives that retention. After upgrading, rows already beyond it go at the next tick or other pruning save, such as pausing or resuming; schedule edits save without pruning, as before.
+
 ### Engine 1.2.2-offline (23 November 2026)
 
 - **Job inspection:** the engine reads each `launchctl print` argument as one whole line, removing only launchctl's indentation, so an install path with a space is recognised as its own job and an argument that differs only by a trailing blank is not; it also requires the job's top-level `path` to be the engine's own plist. A same-label job loaded from another plist, or one with no `path` line, is `job_ownership_unknown`.

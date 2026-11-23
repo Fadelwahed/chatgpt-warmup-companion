@@ -49,7 +49,7 @@ final class AppModel: ObservableObject {
     private var acknowledgedSlot = UserDefaults.standard.string(forKey: AppModel.acknowledgedSlotKey) {
         didSet { UserDefaults.standard.set(self.acknowledgedSlot, forKey: Self.acknowledgedSlotKey) }
     }
-    static let acknowledgedSlotKey = "acknowledgedProblemSlot"
+    static let acknowledgedSlotKey = GlanceBuilder.acknowledgedSlotKey
     /// The one-time setup card: each question counts as answered once its switch has been changed
     /// or Done was pressed. The 0.5 Done flag (`setupCardAnswered`) still counts as both.
     @Published private(set) var alertsAnswered = AppModel.answered(AppModel.alertsAnsweredKey)
@@ -352,11 +352,15 @@ final class AppModel: ObservableObject {
         self.recomputeEffect()
     }
 
-    /// Labels follow status order, then accounts only in the Accounts list; the effect rows use them.
-    private func recomputeLabels() {
-        let order = AccountNaming.order(
+    private var labelOrder: [String] {
+        AccountNaming.order(
             status: self.status?.accounts.map(\.enrollmentId) ?? [],
             list: self.accounts?.rows.compactMap(\.enrollmentId) ?? [])
+    }
+
+    /// Labels follow status order, then accounts only in the Accounts list; the effect rows use them.
+    private func recomputeLabels() {
+        let order = self.labelOrder
         self.assign(\.labels, AccountNaming.labels(order: order, names: self.accountNames, hidden: self.hideAccountNames))
         self.recomputeEffect()
     }
@@ -815,7 +819,11 @@ final class AppModel: ObservableObject {
         let report: OperationReport
         switch operation {
         case .runAll, .runAccount:
-            report = Self.makeReport(operation, await client.mutate(operation.command, as: RunReply.self)) { OperationReporter.run(operation, envelope: $0, reply: $1) }
+            // Numbers only: a result stays on screen, and Hide account names may be turned on later.
+            let labels = AccountNaming.labels(order: self.labelOrder, names: self.accountNames, hidden: true)
+            report = Self.makeReport(operation, await client.mutate(operation.command, as: RunReply.self)) {
+                OperationReporter.run(operation, envelope: $0, reply: $1, labels: labels)
+            }
         case .enroll:
             report = Self.makeReport(operation, await client.mutate(operation.command, as: EnrollReply.self)) { OperationReporter.change(operation, envelope: $0, reply: nil, enrolled: $1) }
         case .pause, .resume, .saveEdit, .setting:
@@ -974,12 +982,14 @@ final class AppModel: ObservableObject {
         let zone = self.status?.schedule.zone
         self.overlapNotice = nil
         let operation: WarmupAction
+        var account: String?
         switch report.operation {
         case let .runAccount(id, _, _):
             operation = .runAccount(enrollmentId: id, allowSlotOverlap: true, overlapAt: at)
+            account = self.labels[id]
         default: operation = .runAll(allowSlotOverlap: true, overlapAt: at)
         }
-        self.request(operation) { [weak self] in await self?.overlapStillApplies(overlap, zone: zone) ?? false }
+        self.request(operation, account: account) { [weak self] in await self?.overlapStillApplies(overlap, zone: zone) ?? false }
     }
 
     private func refuseUnscopedOverride() {

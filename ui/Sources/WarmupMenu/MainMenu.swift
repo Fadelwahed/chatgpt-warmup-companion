@@ -2,7 +2,7 @@ import AppKit
 
 /// The main menu for the window. Warm-up runs as a menu-bar (accessory) app; while its window is
 /// open it becomes a regular app, so this menu gives the standard keyboard routes: Cmd-W, Cmd-M,
-/// Cmd-Q, the Edit commands for the time fields, and Cmd-1 to Cmd-4 for the tabs, Cmd-comma for Settings and Cmd-R to refresh.
+/// Cmd-Q, the Edit commands for the time fields, and Cmd-1 to Cmd-3 for the sidebar panes, Cmd-comma for the Settings window and Cmd-R to refresh.
 @MainActor
 final class MainMenu: NSObject {
     private let window: MainWindowController
@@ -41,7 +41,7 @@ final class MainMenu: NSObject {
                     NSMenuItem(title: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v"),
                     NSMenuItem(title: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"),
                 ]))
-        var view: [NSMenuItem] = MainWindowController.Tab.allCases.map { tab in
+        var view: [NSMenuItem] = MainWindowController.sidebarTabs.map { tab in
             let item = NSMenuItem(
                 title: tab.label, action: #selector(self.openTab(_:)), keyEquivalent: "\(tab.rawValue + 1)")
             item.target = self

@@ -144,7 +144,9 @@ public enum StatusCLI {
     }
 
     /// What to print and the exit code: stdout text (or JSON), or one stderr line when unreadable.
-    public static func render(_ snapshot: Snapshot?, json: Bool, now: Date) -> (
+    /// `acknowledgedSlot` is the app's stored problem slot already opened (`GlanceBuilder.acknowledgedSlotKey`),
+    /// so the CLI and the app agree on "Needs a look" (0.6.3).
+    public static func render(_ snapshot: Snapshot?, json: Bool, now: Date, acknowledgedSlot: String? = nil) -> (
         stdout: Data, stderr: String?, code: Int32
     ) {
         guard let snapshot else { return (Data(), Self.unreadableMessage, Self.exitUnreadable) }
@@ -159,7 +161,10 @@ public enum StatusCLI {
             Self.paired(projection: projection, status: status, observedAt: observedAt)
         else { return (Data(), Self.scheduleUnreadableMessage, Self.exitUnreadable) }
         let today = Self.observedDay(status: status, observedAt: observedAt)
-        let glance = GlanceBuilder.make(status: status, today: today, observedAt: snapshot.observedAt)
+        let glance = GlanceBuilder.make(
+            status: status, today: today, observedAt: snapshot.observedAt,
+            // A malformed stored value never hides a problem.
+            acknowledgedSlot: acknowledgedSlot.flatMap { Self.isSlot($0) ? $0 : nil })
         let code = Self.exitCode(
             glance: glance, health: Self.health(status, observedAt: snapshot.observedAt, now: now),
             unresolved: status.unresolved.count)

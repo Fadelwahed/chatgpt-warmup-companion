@@ -22,6 +22,32 @@ import Testing
         #expect(report.overlap == nil)
     }
 
+    /// 0.6.3: a result names its own account (by enrollment ID), never its place in the reply, and a
+    /// confirmation without a shown name never falls back to a raw ID.
+    @Test func resultsAndConfirmationsUseOnScreenNames() throws {
+        let action = WarmupAction.runAccount(enrollmentId: "enr_b", allowSlotOverlap: false)
+        let (envelope, _) = try self.reply(
+            "mutation-run-success", RunReply.self, exit: 0,
+            command: WarmupAction.runAll(allowSlotOverlap: false).command)
+        let uncertain = AccountResult(
+            enrollmentId: "enr_b", outcome: "uncertain", reason: "timeout", dispatched: nil, at: nil)
+        let reply = RunReply(selected: 1, attempted: 1, results: [uncertain], overlap: nil)
+        let labels = ["enr_a": "Account 1", "enr_b": "Account 2"]
+        let named = OperationReporter.run(action, envelope: envelope, reply: reply, labels: labels)
+        #expect(named.details.first?.hasPrefix("Account 2: may have been sent") == true)
+        let unnamed = OperationReporter.run(action, envelope: envelope, reply: reply)
+        #expect(unnamed.details.first?.hasPrefix("An account: may have been sent") == true)
+        let run = Confirmation.text(for: action, enabledAccounts: 2, pilots: 2)
+        #expect(!run.contains("enr_b"))
+        #expect(run.hasPrefix("Sends one warm-up request to this account."))
+        let enroll = Confirmation.text(for: .enroll(routerAccountId: "router_secret"), enabledAccounts: 0, pilots: 0)
+        #expect(!enroll.contains("router_secret"))
+        #expect(enroll.hasPrefix("Adds this Router account to Warm-up."))
+        #expect(
+            Confirmation.text(for: .enroll(routerAccountId: "r"), enabledAccounts: 0, pilots: 0, account: "router_a")
+                .hasPrefix("Adds Router account router_a to Warm-up."))
+    }
+
     @Test func overlapRefusalOffersAnExplicitOverrideAndSendsNothing() throws {
         let action = WarmupAction.runAll(allowSlotOverlap: false)
         let (envelope, run) = try self.reply("mutation-run-overlap", RunReply.self, exit: 3, command: action.command)

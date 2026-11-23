@@ -109,6 +109,29 @@ import Testing
         #expect(try JSONDecoder().decode(StatusCLI.Report.self, from: rendered.stdout).verdict.hasPrefix("All good"))
     }
 
+    /// 0.6.3: once the app has opened the problem slot, the CLI no longer says "Needs a look" for it.
+    @Test func acknowledgedProblemMatchesTheApp() throws {
+        let ledger: [String: Any] = [
+            "slot": "2026-11-11T18:00", "admission": "18:00", "verdict": "not_admitted", "cause": "no_tick_between",
+            "zone": "Asia/Gaza", "at": Self.observedNow - 3_600_000,
+        ]
+        let missed = try self.status { $0["slotLedger"] = [ledger] }
+        let snapshot = StatusCLI.Snapshot(
+            status: missed, observedAt: Self.observedNow, projection: try self.projection())
+        let unseen = StatusCLI.render(snapshot, json: true, now: Self.now)
+        #expect(unseen.code == 1)
+        #expect(try JSONDecoder().decode(StatusCLI.Report.self, from: unseen.stdout).verdict.hasPrefix("Needs a look"))
+        let seen = StatusCLI.render(snapshot, json: true, now: Self.now, acknowledgedSlot: "2026-11-11T18:00")
+        #expect(seen.code == 0)
+        #expect(try JSONDecoder().decode(StatusCLI.Report.self, from: seen.stdout).verdict.hasPrefix("All good"))
+        let older = StatusCLI.render(snapshot, json: false, now: Self.now, acknowledgedSlot: "2026-11-11T13:00")
+        #expect(older.code == 1)
+        let malformed = StatusCLI.render(snapshot, json: false, now: Self.now, acknowledgedSlot: "2026-11-11T18:00 ")
+        #expect(malformed.code == 1)
+        // The app writes this key; the CLI reads the same one.
+        #expect(GlanceBuilder.acknowledgedSlotKey == "acknowledgedProblemSlot")
+    }
+
     /// 060-FIX1 item 7: without a ready schedule the CLI prints nothing and exits 2.
     @Test func unreadableScheduleExitsTwo() throws {
         let snapshot = StatusCLI.Snapshot(status: try self.status(), observedAt: nil, projection: nil)

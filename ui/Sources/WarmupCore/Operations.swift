@@ -138,7 +138,11 @@ public enum OperationReporter {
         OperationReport(operation: operation, kind: .refused, headline: "\(operation.title): not started", details: [issue.description], reason: nil, overlap: nil)
     }
 
-    public static func run(_ operation: WarmupAction, envelope: Envelope, reply: RunReply) -> OperationReport {
+    /// `labels` maps enrollment IDs to the on-screen account names (nickname or "Account N"), so a
+    /// result names the account it is about, never its place in the reply (0.6.3).
+    public static func run(
+        _ operation: WarmupAction, envelope: Envelope, reply: RunReply, labels: [String: String] = [:]
+    ) -> OperationReport {
         if envelope.reason == "slot_overlap_risk", let overlap = reply.overlap {
             let due = FriendlyTime.time(overlap.admission, on: overlap.date, today: nil)
             return OperationReport(
@@ -151,9 +155,10 @@ public enum OperationReporter {
         let uncertain = reply.results.filter { $0.outcome == "uncertain" }.count
         // Accounts are listed only when one did not succeed.
         var details: [String] = []
-        for (index, result) in reply.results.enumerated() where result.outcome != "success" {
+        for result in reply.results where result.outcome != "success" {
             let sent = result.dispatched == true ? "sent" : result.outcome == "uncertain" ? "may have been sent" : "not sent"
-            details.append("Account \(index + 1): \(sent), \(Wording.reason(result.reason)).")
+            let name = labels[result.enrollmentId] ?? "An account"
+            details.append("\(name): \(sent), \(Wording.reason(result.reason)).")
         }
         if uncertain > 0 { details.append("Uncertain sends are never resent.") }
         let kind: OperationReport.Kind = switch envelope.outcome {
@@ -216,10 +221,10 @@ public enum Confirmation {
             "Sends one warm-up request to each enabled account (\(enabledAccounts) at the last check). Each request counts toward that account's usage. Nothing is retried automatically."
                 + (overlap ? self.overrideNote : "")
         case let .runAccount(id, overlap, _):
-            "Sends one warm-up request to \(account ?? id). It counts toward that account's usage. Nothing is retried automatically."
+            "Sends one warm-up request to \(account ?? "this account"). It counts toward that account's usage. Nothing is retried automatically."
                 + (overlap ? self.overrideNote : "")
         case let .enroll(ref):
-            "Adds Router account \(account ?? ref) to Warm-up. Nothing is sent. Scheduling needs one successful manual warm-up first."
+            "Adds \(account.map { "Router account \($0)" } ?? "this Router account") to Warm-up. Nothing is sent. Scheduling needs one successful manual warm-up first."
         case .pause:
             "Stops automatic warm-ups. A running batch finishes first. Nothing runs until you resume."
         case .resume:

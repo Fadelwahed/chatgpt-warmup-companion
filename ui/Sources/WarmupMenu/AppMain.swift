@@ -105,7 +105,9 @@ enum StatusCommand {
             semaphore.signal()
         }
         semaphore.wait()
-        return self.finish(StatusCLI.render(snapshot, json: json, now: Date()))
+        // Read-only: the same app-domain value the menu uses, so both say "Needs a look" alike.
+        let seen = UserDefaults.standard.string(forKey: GlanceBuilder.acknowledgedSlotKey)
+        return self.finish(StatusCLI.render(snapshot, json: json, now: Date(), acknowledgedSlot: seen))
     }
 
     private static func finish(_ output: (stdout: Data, stderr: String?, code: Int32)) -> Int32 {

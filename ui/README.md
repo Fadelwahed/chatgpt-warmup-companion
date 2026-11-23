@@ -12,6 +12,14 @@ A native macOS menu-bar companion for the existing Warm-up CLI. The CLI and its 
 - **Schedule:** today plus six days from `schedule inspect`, with weekday exclusions, repeated or nonexistent DST minutes and the next admission. Selecting a slot runs `schedule inspect --slot`. The detail separates whether a request was sent, whether a response was confirmed and the guidance. It always shows "Usage window effect unverified". **Copy redacted summary** copies reason codes and times only: no installation ID, account IDs or tokens.
 - **Accounts:** rows from `list`, which reads Router's registry without credentials or network.
 
+## Version 0.6.3 (23 November 2026): sidebar, Settings window, Accounts layout, CLI agrees with the app
+
+- **Sidebar:** the main window picks Overview, Schedule or Accounts from a sidebar (Cmd-1 to Cmd-3) instead of toolbar tabs. The window subtitle names the pane. The panes stay loaded, so switching keeps each pane's state. The window opens at 960×640 the first time, under a new saved-frame name.
+- **Settings window:** Settings has its own window (Cmd-comma, or Settings… in the menu), as macOS apps usually do; it never merges into the main window as a tab. Refreshes run while either window is visible. A missed slot counts as seen only while the main window is key with Schedule showing and no sheet open.
+- **Accounts:** the account's state sits on a second line under its name, and the row actions are a compact "…" menu, so nothing is cut off at the default width.
+- **CLI:** `--status` and `--json` read the app's "problem seen" value (`acknowledgedProblemSlot`, read-only). After you open a missed slot in Schedule, the CLI stops saying "Needs a look" for it and exits 0, like the menu.
+- **Privacy and wording:** confirmations name an account only by its on-screen name. With Hide account names on they say "this account", never a Router or enrollment ID. Warm-up results name the account each result is about, not its position in the engine's reply.
+
 ## Version 0.6.2 (23 November 2026): macOS 26/27 UI pass on top of 0.6.1
 
 - Warning words (account readiness, Health) keep text contrast; orange stays on the symbol only (orange text is about 2.2:1 on light backgrounds).

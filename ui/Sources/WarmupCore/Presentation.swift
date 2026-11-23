@@ -144,6 +144,10 @@ public enum GlanceBuilder {
             notes: ["Refresh to try again."])
     }
 
+    /// UserDefaults key (app domain) holding the latest problem slot whose detail was opened. The app
+    /// writes it; the CLI only reads it.
+    public static let acknowledgedSlotKey = "acknowledgedProblemSlot"
+
     /// `observedAt` is the engine's observation time from the same reply, in milliseconds. It is
     /// needed to judge the heartbeat; without it the heartbeat is not flagged. `macZone` hides the
     /// zone when it is the Mac's own; `acknowledgedSlot` is the latest problem slot already opened.

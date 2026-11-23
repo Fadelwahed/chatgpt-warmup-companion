@@ -346,7 +346,7 @@ private struct LastSevenDaysSection: View {
             }
             if let report = self.model.weekReport {
                 DisclosureGroup("Details", isExpanded: self.$details) {
-                    ForEach(report.details, id: \.self) { Text($0).font(.callout) }
+                    ForEach(Array(report.details.enumerated()), id: \.offset) { Text($0.element).font(.callout) }
                     HStack {
                         Button("Copy Weekly Report") { self.model.copyWeekReport() }
                             .accessibilityHint("Copies counts and reasons; accounts are numbered, not named")
@@ -884,7 +884,7 @@ struct ReportSection: View {
                     .controlSize(.small)
                     .accessibilityLabel("Dismiss result")
             }
-            ForEach(self.report.details, id: \.self) { Text($0).font(.callout) }
+            ForEach(Array(self.report.details.enumerated()), id: \.offset) { Text($0.element).font(.callout) }
             if let overlap = self.report.overlap {
                 Button("Run Anyway…") { Task { await self.model.runAnyway(self.report) } }
                     .disabled(!self.model.controlsAvailable)
@@ -1511,7 +1511,7 @@ struct AccountsPane: View {
                 TableColumn("Scheduled") { row in
                     if let enrollment = row.enrollmentId, row.enabled, self.model.supports("scheduled_accounts") {
                         ScheduledToggle(
-                            model: self.model, enrollment: enrollment, account: row.routerAccountId,
+                            model: self.model, enrollment: enrollment,
                             label: self.model.accountLabel(row))
                     } else {
                         Text("—").accessibilityLabel("Not applicable")
@@ -1521,7 +1521,7 @@ struct AccountsPane: View {
                 TableColumn("") { row in
                     AccountActions(model: self.model, row: row) { self.renaming = row }
                 }
-                .width(min: 90, ideal: 100)
+                .width(min: 36, ideal: 40)
             }
             .accessibilityLabel("Accounts")
             .overlay {
@@ -1570,11 +1570,12 @@ private struct AccountNameCell: View {
     var body: some View {
         let label = self.model.accountLabel(self.row)
         let look = AccountText.needsLook(self.row)
-        HStack(spacing: 4) {
+        // Two lines, so the state is never cut off at the default width (0.6.3).
+        VStack(alignment: .leading, spacing: 2) {
             Text(label).fontWeight(.semibold).lineLimit(1).truncationMode(.middle).help(label)
-            Text("·").foregroundStyle(.secondary).accessibilityHidden(true)
             // Orange on the symbol only; the words keep text contrast.
             Label(AccountText.readiness(self.row), systemImage: AccountText.symbol(self.row))
+                .font(.callout)
                 .lineLimit(1)
                 .labelStyle(LegendLabelStyle(tint: look ? .orange : .secondary))
                 .foregroundStyle(look ? Color.primary : Color.secondary)
@@ -1634,12 +1635,11 @@ private struct ActionGate: ViewModifier {
 private struct ScheduledToggle: View {
     @ObservedObject var model: AppModel
     let enrollment: String
-    let account: String
     let label: String
 
     var body: some View {
         let on = self.model.isScheduled(self.enrollment)
-        Toggle("Scheduled", isOn: Binding(get: { on }, set: { self.model.setScheduled(self.enrollment, to: $0, account: self.account) }))
+        Toggle("Scheduled", isOn: Binding(get: { on }, set: { self.model.setScheduled(self.enrollment, to: $0, account: self.label) }))
             .labelsHidden()
             .modifier(ActionGate(model: self.model, help: on ? "Scheduled warm-ups include this account" : "Scheduled warm-ups leave this account out"))
             .accessibilityLabel("Scheduled warm-ups for \(self.label)")
@@ -1659,13 +1659,13 @@ private struct AccountActions: View {
         let label = self.model.accountLabel(self.row)
         let gated = !self.model.controlsAvailable
         if enrolled || canEnroll || self.row.enrollmentId != nil {
-            Menu("Actions") {
+            Menu {
                 if self.row.enrollmentId != nil {
                     Button("Rename…", action: self.rename).accessibilityLabel("Rename \(label)")
                 }
                 if let enrollment = self.row.enrollmentId, enrolled {
                     Button("Warm Up…") {
-                        self.model.request(.runAccount(enrollmentId: enrollment, allowSlotOverlap: false), account: self.row.routerAccountId)
+                        self.model.request(.runAccount(enrollmentId: enrollment, allowSlotOverlap: false), account: label)
                     }
                     .disabled(gated)
                     if self.model.supports("daily_caps") {
@@ -1680,11 +1680,21 @@ private struct AccountActions: View {
                     }
                 }
                 if canEnroll {
-                    Button("Enroll…") { self.model.request(.enroll(routerAccountId: self.row.routerAccountId), account: self.row.routerAccountId) }
+                    Button("Enroll…") {
+                        // The Router account is named only while names are shown.
+                        let shown = self.model.hideAccountNames ? nil : self.row.routerAccountId
+                        self.model.request(.enroll(routerAccountId: self.row.routerAccountId), account: shown)
+                    }
                         .disabled(gated)
                 }
+            } label: {
+                Label("Actions", systemImage: "ellipsis.circle").labelStyle(.iconOnly)
             }
-            .help(self.model.controlsUnavailableReason.map { "Rename only: \($0)" } ?? "Each engine action asks for confirmation first")
+            // A compact row menu, so the column fits beside the others at the default width (0.6.3).
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help(self.model.controlsUnavailableReason.map { "Rename only: \($0)" } ?? "Actions. Each engine action asks for confirmation first")
             .accessibilityLabel("Actions for \(label)")
         } else {
             Text("—").accessibilityLabel("No action available")
@@ -1692,7 +1702,7 @@ private struct AccountActions: View {
     }
 
     private func cap(_ enrollment: String, _ count: Int?) {
-        self.model.setting(.cap(enrollmentId: enrollment, count: count), account: self.row.routerAccountId)
+        self.model.setting(.cap(enrollmentId: enrollment, count: count), account: self.model.accountLabel(self.row))
     }
 }
 

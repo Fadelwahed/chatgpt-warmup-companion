@@ -4,6 +4,10 @@ Notable changes to Warm-up: the engine (`warmup.mjs` and its modules) and the me
 
 ## Unreleased
 
+### App 0.6.9
+
+- **One time for each warm-up everywhere.** The Overview headline, "Needs a look", "Warming up", the sends-without-result groups, `--status`/`--json` and alerts name a time moved for one day (`--today`) at the minute it runs, as Today does. Slot labels stay the key for clicks, acknowledgements, alerts and copied diagnostics.
+
 ### App 0.6.8
 
 - **Today shows when warm-ups run.** Overview's Today cells, the menu's Today line and `WarmupMenu --status`/`--json` show a moved time at the minute it runs (13:10, not 13:00), in that order, as Schedule already did.

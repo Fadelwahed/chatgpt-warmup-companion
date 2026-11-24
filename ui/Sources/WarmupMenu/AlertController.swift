@@ -381,7 +381,8 @@ final class AlertController: NSObject, ObservableObject {
     private func flush(generation: Int) async {
         for pending in self.outbox.deliveries {
             guard generation == self.generation, self.enabled, self.allowed else { return }
-            guard let content = AlertComposer.content(for: pending) else { continue }
+            let runs = RunTimes.make(status: self.model.status, projection: self.model.projection)
+            guard let content = AlertComposer.content(for: pending, runs: runs) else { continue }
             guard await self.deliver(content, generation: generation) else { return }
         }
     }

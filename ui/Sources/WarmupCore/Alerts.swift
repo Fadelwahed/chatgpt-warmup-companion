@@ -416,9 +416,11 @@ public enum AlertComposer {
     /// echoed, and slots and the zone are used only when they have their validated shape.
     /// macOS already shows the app's name, so titles say what happened. Dates are absolute
     /// ("Thu 12 Nov 18:00", 060-FIX6 item 3), so an alert delivered on a later day stays true, and
-    /// the zone is named only when it is not the Mac's.
+    /// the zone is named only when it is not the Mac's. Each slot is named at the minute it ran (`runs`,
+    /// app 0.6.9); the identifier and outbox keys keep the slot labels.
     public static func content(
-        for problems: [SlotProblem], zone: String, macZone: String? = TimeZone.current.identifier
+        for problems: [SlotProblem], zone: String, macZone: String? = TimeZone.current.identifier,
+        runs: RunTimes = .none
     ) -> AlertContent? {
         let problems = problems.filter { SlotProblem.isSlot($0.slot) }.sorted { $0.slot < $1.slot }
         guard let newest = problems.last else { return nil }
@@ -426,14 +428,14 @@ public enum AlertComposer {
         let identifier = self.identifier(slots: slots)
         let suffix = self.zoneSuffix(zone, macZone: macZone)
         guard problems.count == 1 else {
-            let names = slots.map { FriendlyTime.slot($0, today: nil) }
+            let names = slots.map { FriendlyTime.slot($0, today: nil, runs: runs) }
             return AlertContent(
                 title: "\(problems.count) warm-ups need a look",
                 body: "\(names.joined(separator: ", "))\(suffix). Open Warm-up to see what happened.",
                 slot: newest.slot, identifier: identifier, slots: slots)
         }
-        let when = FriendlyTime.slot(newest.slot, today: nil) + suffix
-        let time = String(newest.slot.suffix(5))
+        let when = FriendlyTime.slot(newest.slot, today: nil, runs: runs) + suffix
+        let time = runs.time(of: newest.slot) ?? String(newest.slot.suffix(5))
         switch newest.kind {
         case let .notAdmitted(cause):
             return AlertContent(
@@ -457,15 +459,16 @@ public enum AlertComposer {
     /// grouped, or the incomplete-history notice. Nil when there is nothing. Each slot is named in its
     /// own entry's zone, so a group spanning a zone change labels every slot correctly (060-FIX8 item 3).
     public static func content(
-        for pending: [PendingAlert], macZone: String? = TimeZone.current.identifier
+        for pending: [PendingAlert], macZone: String? = TimeZone.current.identifier, runs: RunTimes = .none
     ) -> AlertContent? {
         let problems = pending.filter { $0.slotProblem != nil }.sorted { $0.slot < $1.slot }
         if let newest = problems.last {
-            let content = self.content(for: problems.compactMap(\.slotProblem), zone: newest.zone, macZone: macZone)
+            let content = self.content(
+                for: problems.compactMap(\.slotProblem), zone: newest.zone, macZone: macZone, runs: runs)
             let named = problems.filter { SlotProblem.isSlot($0.slot) }
             guard let content, Set(named.map(\.zone)).count > 1 else { return content }
             let names = named.map {
-                FriendlyTime.slot($0.slot, today: nil) + self.zoneSuffix($0.zone, macZone: macZone)
+                FriendlyTime.slot($0.slot, today: nil, runs: runs) + self.zoneSuffix($0.zone, macZone: macZone)
             }
             return AlertContent(
                 title: content.title, body: "\(names.joined(separator: ", ")). Open Warm-up to see what happened.",

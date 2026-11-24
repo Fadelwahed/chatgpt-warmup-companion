@@ -282,7 +282,7 @@ final class AppModel: ObservableObject {
         self.acknowledgedSlot = slot
         self.glance = GlanceBuilder.make(
             status: status, today: FriendlyTime.today(zone: status.schedule.zone), observedAt: self.lastObservedAt,
-            acknowledgedSlot: slot)
+            acknowledgedSlot: slot, runs: RunTimes.make(status: status, projection: self.projection))
     }
 
     /// A failed read leaves the Schedule and Accounts rows from an earlier read on screen.
@@ -1134,7 +1134,8 @@ final class AppModel: ObservableObject {
                 \.glance,
                 GlanceBuilder.make(
                     status: status, today: FriendlyTime.today(zone: status.schedule.zone),
-                    observedAt: self.lastObservedAt, acknowledgedSlot: self.acknowledgedSlot))
+                    observedAt: self.lastObservedAt, acknowledgedSlot: self.acknowledgedSlot,
+                    runs: RunTimes.make(status: status, projection: self.projection)))
             // Alerts observe only a verified engine, never one shown read-only after a mismatch.
             self.lastInstallation = self.bindingIssue == nil ? reply.envelope.installationId : nil
             if self.bindingIssue == nil, let installation = reply.envelope.installationId {

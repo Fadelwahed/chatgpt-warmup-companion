@@ -151,9 +151,10 @@ public enum GlanceBuilder {
     /// `observedAt` is the engine's observation time from the same reply, in milliseconds. It is
     /// needed to judge the heartbeat; without it the heartbeat is not flagged. `macZone` hides the
     /// zone when it is the Mac's own; `acknowledgedSlot` is the latest problem slot already opened.
+    /// `runs` names each slot at the minute it ran or runs (app 0.6.9); the labels stay the keys.
     public static func make(
         status: EngineStatus, today: String?, observedAt: Int? = nil, macZone: String? = TimeZone.current.identifier,
-        acknowledgedSlot: String? = nil
+        acknowledgedSlot: String? = nil, runs: RunTimes = .none
     ) -> Glance {
         let zone = status.schedule.zone
         let zoneSuffix = zone == macZone ? "" : " (\(zone))"
@@ -173,7 +174,7 @@ public enum GlanceBuilder {
             if status.clockHold != nil { return (.attention, "Held: the clock moved backward") }
             if !status.scheduleEnabled { return (.paused, "Paused") }
             if status.job != "loaded" { return (.attention, "Background job not running") }
-            if let batch = status.activeBatch, batch.state == "running" { return (.running, "Warming up: \(batch.slot.suffix(5))") }
+            if let batch = status.activeBatch, batch.state == "running" { return (.running, "Warming up: \(runs.time(of: batch.slot) ?? String(batch.slot.suffix(5)))") }
             guard let next = status.next else { return (.noUpcoming, "No warm-up in the next 7 days") }
             let when = next.date == today ? next.admission : FriendlyTime.time(next.admission, on: next.date, today: today)
             return (.scheduled, "All good · next \(when)\(zoneSuffix)")
@@ -195,7 +196,7 @@ public enum GlanceBuilder {
             notes.insert(Self.nextLine(headline), at: 0)
             state = .attention
             symbol = GlanceState.unseenProblemSymbol
-            headline = "Needs a look: \(FriendlyTime.slotShort(lastSlot, today: today))"
+            headline = "Needs a look: \(FriendlyTime.slotShort(lastSlot, today: today, runs: runs))"
             unseen = lastSlot
         }
         // Engine 1.1 names what holds the work lock: the likeliest cause of a stopped heartbeat.
@@ -206,9 +207,9 @@ public enum GlanceBuilder {
         let ledger = status.slotLedger.first
         let batchIsNewer = (status.lastSlotOutcome?.slot ?? "") >= (ledger?.slot ?? "")
         if let outcome = status.lastSlotOutcome, batchIsNewer {
-            last = LastSlotText.outcome(outcome, today: today)
+            last = LastSlotText.outcome(outcome, today: today, runs: runs)
         } else if let ledger {
-            last = LastSlotText.ledger(ledger, today: today)
+            last = LastSlotText.ledger(ledger, today: today, runs: runs)
         }
         return Glance(
             state: state, headline: headline, lastOutcome: last, lastOutcomeSlot: lastSlot, notes: notes, symbolName: symbol,

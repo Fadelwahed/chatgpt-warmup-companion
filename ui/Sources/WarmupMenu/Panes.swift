@@ -389,10 +389,13 @@ private struct UnresolvedSection: View {
     let openSchedule: () -> Void
     @State private var expanded = false
 
+    /// The minute each slot ran or runs (app 0.6.9), so groups name the same time as Today.
+    private var runs: RunTimes { RunTimes.make(status: self.status, projection: self.model.projection) }
+
     var body: some View {
         let today = FriendlyTime.today(zone: self.status.schedule.zone)
         let visible = self.model.visibleUnresolved
-        let groups = UnresolvedGroup.make(visible, today: today)
+        let groups = UnresolvedGroup.make(visible, today: today, runs: self.runs)
         Section("Needs attention") {
             if !visible.isEmpty {
                 HStack {
@@ -442,7 +445,7 @@ private struct UnresolvedSection: View {
         let reviewed = self.model.reviewedUnresolved
         if !reviewed.isEmpty {
             if self.model.showReviewed {
-                ForEach(UnresolvedGroup.make(reviewed, today: today)) { group in
+                ForEach(UnresolvedGroup.make(reviewed, today: today, runs: self.runs)) { group in
                     Label("\(group.text) · reviewed", systemImage: "checkmark.circle")
                         .font(.callout)
                         .foregroundStyle(.secondary)

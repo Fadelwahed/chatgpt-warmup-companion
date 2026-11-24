@@ -74,19 +74,18 @@ public struct TodayMark: Sendable, Equatable {
     ) -> [TodayMark] {
         guard available else { return [] }
         var byTime: [String: Kind] = [:]
-        var runs: [String: String] = [:]
         for slot in week?.slots ?? [] { byTime[slot.time] = Kind(slot.mark) }
-        for row in ledger where row.slot.hasPrefix((week?.date ?? "") + "T") && Self.isClock(row.admission) {
-            runs[String(row.slot.suffix(5))] = row.admission
+        for admission in admissions where byTime[String(admission.slot.suffix(5))] == nil {
+            byTime[String(admission.slot.suffix(5))] = Self.kind(admission, now: now)
         }
-        for admission in admissions {
-            let time = String(admission.slot.suffix(5))
-            // A time moved for today (or for every day) is shown at the minute it runs, as on Schedule.
-            if runs[time] == nil, Self.isClock(admission.admission) { runs[time] = admission.admission }
-            guard byTime[time] == nil else { continue }
-            byTime[time] = Self.kind(admission, now: now)
-        }
-        return byTime.map { TodayMark(time: $0.key, kind: $0.value, shown: runs[$0.key]) }
+        // A time moved for today (or for every day) is shown at the minute it runs, as on Schedule. The
+        // marks are keyed by time alone, so both sources are keyed on one day before the shared rule.
+        let day = week?.date ?? "today"
+        let runs = RunTimes.resolve(
+            projected: admissions.map { (slot: "\(day)T\($0.slot.suffix(5))", time: $0.admission) },
+            recorded: ledger.filter { $0.slot.hasPrefix((week?.date ?? "") + "T") }
+                .map { (slot: "\(day)T\($0.slot.suffix(5))", time: $0.admission) })
+        return byTime.map { TodayMark(time: $0.key, kind: $0.value, shown: runs.time(of: "\(day)T\($0.key)")) }
             .sorted { ($0.shown, $0.time) < ($1.shown, $1.time) }
     }
 

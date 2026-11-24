@@ -124,6 +124,13 @@ public enum StatusCLI {
             && ProjectionCheck.current(projection: projection, status: status, today: today)
     }
 
+    /// The minute each slot runs (app 0.6.9), only from a projection `paired` with the status for
+    /// `today`; `.none` otherwise, so labels keep their own time.
+    static func runs(status: EngineStatus, projection: ScheduleProjection?, today: String?) -> RunTimes {
+        guard let projection, Self.paired(projection: projection, status: status, today: today) else { return .none }
+        return RunTimes.make(status: status, projection: projection)
+    }
+
     /// `paired` on the observation's own local date.
     static func paired(projection: ScheduleProjection, status: EngineStatus, observedAt: Int) -> Bool {
         let today = Self.observedDay(status: status, observedAt: observedAt)
@@ -164,7 +171,8 @@ public enum StatusCLI {
         let glance = GlanceBuilder.make(
             status: status, today: today, observedAt: snapshot.observedAt,
             // A malformed stored value never hides a problem.
-            acknowledgedSlot: acknowledgedSlot.flatMap { Self.isSlot($0) ? $0 : nil })
+            acknowledgedSlot: acknowledgedSlot.flatMap { Self.isSlot($0) ? $0 : nil },
+            runs: Self.runs(status: status, projection: projection, today: today))
         let code = Self.exitCode(
             glance: glance, health: Self.health(status, observedAt: snapshot.observedAt, now: now),
             unresolved: status.unresolved.count)
@@ -318,6 +326,8 @@ public enum StatusCLI {
         let problemSlot: String?
         /// Today's marks, each time either "HH:mm" or "unknown".
         let today: [TodayMark]
+        /// The minute each slot runs, from a paired projection only (`StatusCLI.runs`).
+        let runs: RunTimes
 
         static func make(
             status: EngineStatus, glance: Glance, projection: ScheduleProjection?, now: Date, observedAt: Int? = nil
@@ -345,7 +355,7 @@ public enum StatusCLI {
                 problemSlot: glance.unseenProblemSlot.flatMap { StatusCLI.isSlot($0) ? $0 : nil },
                 today: marks.map {
                     TodayMark(time: StatusCLI.safeTime($0.time), kind: $0.kind, shown: StatusCLI.safeTime($0.shown))
-                })
+                }, runs: StatusCLI.runs(status: status, projection: projection, today: date))
         }
     }
 
@@ -362,10 +372,11 @@ public enum StatusCLI {
         }
         if Self.fixedVerdicts.contains(headline) { return headline }
         if headline.hasPrefix(Self.runningPrefix) {
-            return Self.runningPrefix + (fields.batchSlot.map { String($0.suffix(5)) } ?? Self.unknownText)
+            let time = fields.batchSlot.map { fields.runs.time(of: $0) ?? String($0.suffix(5)) }
+            return Self.runningPrefix + (time ?? Self.unknownText)
         }
         if headline.hasPrefix(Self.problemPrefix) {
-            let slot = fields.problemSlot.map { FriendlyTime.slotShort($0, today: fields.date) }
+            let slot = fields.problemSlot.map { FriendlyTime.slotShort($0, today: fields.date, runs: fields.runs) }
             return Self.problemPrefix + (slot ?? Self.unknownText)
         }
         if headline.hasPrefix(Self.scheduledPrefix) {

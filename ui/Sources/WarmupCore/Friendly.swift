@@ -17,16 +17,17 @@ public enum FriendlyTime {
         return self.formatter("EEE d MMM").string(from: parsed)
     }
 
-    /// "Today 08:00", "Yesterday 18:00", "Mon 16 Nov 08:00".
-    public static func slot(_ slot: String, today: String?) -> String {
-        guard let (date, time) = self.split(slot) else { return slot }
-        return "\(self.day(date, today: today)) \(time)"
+    /// "Today 08:00", "Yesterday 18:00", "Mon 16 Nov 08:00". The time is the minute the slot runs
+    /// (`runs`, app 0.6.9), else the label's own.
+    public static func slot(_ slot: String, today: String?, runs: RunTimes = .none) -> String {
+        guard let (date, own) = self.split(slot) else { return slot }
+        return "\(self.day(date, today: today)) \(runs.time(of: slot) ?? own)"
     }
 
     /// Time first, for a sentence: "08:00 today", "18:00 yesterday", "08:00 Mon 16 Nov".
-    public static func slotShort(_ slot: String, today: String?) -> String {
-        guard let (date, time) = self.split(slot) else { return slot }
-        return self.time(time, on: date, today: today)
+    public static func slotShort(_ slot: String, today: String?, runs: RunTimes = .none) -> String {
+        guard let (date, own) = self.split(slot) else { return slot }
+        return self.time(runs.time(of: slot) ?? own, on: date, today: today)
     }
 
     /// `time` on `date`, time first: "08:00 tomorrow", "08:00 Mon 16 Nov".
@@ -123,8 +124,8 @@ extension Wording {
 
 /// One sentence for the most recent slot: "08:00 today: all 3 confirmed".
 public enum LastSlotText {
-    public static func outcome(_ outcome: SlotOutcome, today: String?) -> String {
-        let time = FriendlyTime.slotShort(outcome.slot, today: today)
+    public static func outcome(_ outcome: SlotOutcome, today: String?, runs: RunTimes = .none) -> String {
+        let time = FriendlyTime.slotShort(outcome.slot, today: today, runs: runs)
         let results = outcome.results ?? []
         if outcome.outcome == "blocked" { return "\(time): did not complete" }
         let counted = results.filter { !SlotProblem.chosenSkipReasons.contains($0.reason) }
@@ -141,8 +142,8 @@ public enum LastSlotText {
         return "\(time): \(confirmed) of \(counted.count) confirmed" + (unknown > 0 ? ", \(unknown) unknown" : "")
     }
 
-    public static func ledger(_ row: LedgerRow, today: String?) -> String {
-        let time = FriendlyTime.slotShort(row.slot, today: today)
+    public static func ledger(_ row: LedgerRow, today: String?, runs: RunTimes = .none) -> String {
+        let time = FriendlyTime.slotShort(row.slot, today: today, runs: runs)
         let word = SlotProblem.operatorChosenCauses.contains(row.cause) ? "skipped" : "missed"
         return "\(time): \(word) (\(Wording.reason(row.cause)))"
     }
@@ -368,7 +369,9 @@ public struct UnresolvedGroup: Sendable, Equatable, Identifiable {
     public let text: String
     public var id: String { self.slot ?? "manual" }
 
-    public static func make(_ rows: [UnresolvedReservation], today: String?) -> [UnresolvedGroup] {
+    public static func make(_ rows: [UnresolvedReservation], today: String?, runs: RunTimes = .none)
+        -> [UnresolvedGroup]
+    {
         var perSlot: [String: Int] = [:]
         var manual = 0
         for row in rows {
@@ -377,7 +380,7 @@ public struct UnresolvedGroup: Sendable, Equatable, Identifiable {
         let slots = perSlot.keys.sorted(by: >).map { slot in
             let count = perSlot[slot] ?? 0
             let who = count == 1 ? "1 account" : "\(count) accounts"
-            let when = FriendlyTime.slot(slot, today: today)
+            let when = FriendlyTime.slot(slot, today: today, runs: runs)
             return UnresolvedGroup(slot: slot, text: "\(when): \(who), no result recorded")
         }
         guard manual > 0 else { return slots }

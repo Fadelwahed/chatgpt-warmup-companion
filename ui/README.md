@@ -12,6 +12,10 @@ A native macOS menu-bar companion for the existing Warm-up CLI. The CLI and its 
 - **Schedule:** today plus six days from `schedule inspect`, with weekday exclusions, repeated or nonexistent DST minutes and the next admission. Selecting a slot runs `schedule inspect --slot`. The detail separates whether a request was sent, whether a response was confirmed and the guidance. It always shows "Usage window effect unverified". **Copy redacted summary** copies reason codes and times only: no installation ID, account IDs or tokens.
 - **Accounts:** rows from `list`, which reads Router's registry without credentials or network.
 
+## Version 0.6.9 (24 November 2026): one time for each warm-up everywhere
+
+- One shared resolver now names each warm-up at the minute it ran or runs everywhere: the Overview last-result line, "Needs a look", `WarmupMenu --status`/`--json` (its verdict and Today line agree) and alert notifications. A time moved from 13:00 to 13:10 reads "13:10" in all of them. A time the engine recorded as missed keeps the minute it was due then. The minute comes from the engine's record of missed times and from a schedule projection read for the current schedule; a value that is not a plain HH:mm keeps the configured time. Clicks, acknowledgements, the alert outbox and copied diagnostics still use the slot label ("2026-11-24T13:00"); only the displayed words change. "Warming up: HH:mm" and the Needs attention groups use the same resolver. The Overview headline picks up a moved time at the next status read after the schedule has been read.
+
 ## Version 0.6.8 (24 November 2026): Today shows when warm-ups run
 
 - Overview's Today cells, the menu's Today line and `WarmupMenu --status`/`--json` show a time moved for today or for every day at the minute it runs ("13:10", not "13:00") and in that order, as Schedule does. Clicking a cell still opens that time on Schedule. A value that is not a plain HH:mm keeps the configured time.

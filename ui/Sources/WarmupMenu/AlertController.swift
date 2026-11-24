@@ -25,7 +25,12 @@ final class AlertController: NSObject, ObservableObject {
     static let announcedKey = "alertsAnnouncedSlots"
     /// `AlertScope.fingerprint` of the installation the saved alert state belongs to; never the raw ID.
     static let installationKey = "alertsInstallation"
-    static let notAllowed = "Alerts are on, but notifications are not allowed for Warm-up. You can allow them in System Settings > Notifications."
+    /// `PauseRecord` JSON (F12): when scheduling was first seen paused and the last reminder; no IDs.
+    static let pauseReminderKey = "pauseReminder"
+    /// The fixed notification identifier, so a new reminder replaces the last one.
+    static let pauseReminderIdentifier = "pause-reminder"
+    static let notAllowed =
+        "Alerts are on, but notifications are not allowed for Warm-up. You can allow them in System Settings > Notifications."
     static let notAsked =
         "Alerts are on, but Warm-up has not been allowed to notify yet. Switch alerts off and on to be asked."
 
@@ -80,7 +85,9 @@ final class AlertController: NSObject, ObservableObject {
         self.enabled = defaults.bool(forKey: Self.preferenceKey)
         super.init()
         model.setAlertsOn(self.enabled)
-        model.statusObserver = { [weak self] installation, status in self?.observe(installation: installation, status: status) }
+        model.statusObserver = { [weak self] installation, status in
+            self?.observe(installation: installation, status: status)
+        }
     }
 
     private static func now() -> Int { Int((Date().timeIntervalSince1970 * 1000).rounded()) }
@@ -147,6 +154,7 @@ final class AlertController: NSObject, ObservableObject {
             self.defaults.set(fingerprint, forKey: Self.installationKey)
             self.defaults.removeObject(forKey: Self.coveredThroughKey)
             self.defaults.removeObject(forKey: Self.announcedKey)
+            self.defaults.removeObject(forKey: Self.pauseReminderKey)
             self.outbox = AlertOutbox(installation: fingerprint)
             self.outboxStore?.remove()
             self.refused = false
@@ -176,7 +184,7 @@ final class AlertController: NSObject, ObservableObject {
     func setEnabled(_ on: Bool) {
         guard on else {
             self.model.answerAlerts()  // a change that took effect answers the setup card's question
-            self.generation &+= 1 // a pending permission answer can no longer switch alerts on
+            self.generation &+= 1  // a pending permission answer can no longer switch alerts on
             self.pending = false
             self.enabled = false
             self.defaults.set(false, forKey: Self.preferenceKey)
@@ -184,6 +192,7 @@ final class AlertController: NSObject, ObservableObject {
             self.tracker.reset()
             self.defaults.removeObject(forKey: Self.coveredThroughKey)
             self.defaults.removeObject(forKey: Self.announcedKey)
+            self.defaults.removeObject(forKey: Self.pauseReminderKey)
             self.outbox = AlertOutbox()
             self.outboxStore?.remove()
             self.refused = false
@@ -202,11 +211,13 @@ final class AlertController: NSObject, ObservableObject {
         self.pending = true
         Task {
             // Asking is the only system interaction. A refusal is reported; no setting is changed.
-            let granted = (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert])) ?? false
-            guard generation == self.generation else { return } // switched off meanwhile
+            let granted =
+                (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert])) ?? false
+            guard generation == self.generation else { return }  // switched off meanwhile
             self.pending = false
             guard granted else {
-                self.issue = "Notifications are not allowed for Warm-up. You can allow them in System Settings > Notifications."
+                self.issue =
+                    "Notifications are not allowed for Warm-up. You can allow them in System Settings > Notifications."
                 return
             }
             self.enabled = true
@@ -296,7 +307,49 @@ final class AlertController: NSObject, ObservableObject {
             guard generation == self.generation, self.enabled else { return }
             self.showStorageIssue()
             self.storeCoveredThrough()
+            await self.remindIfPaused(installation: installation, status: status, generation: generation)
         }
+    }
+
+    /// F12: while scheduling stays paused for a day or more, one reminder, then at most one a day.
+    /// It never enters the outbox; a failed delivery is retried at the next observation.
+    private func remindIfPaused(installation: String, status: EngineStatus, generation: Int) async {
+        let now = Self.now()
+        let stored = self.defaults.data(forKey: Self.pauseReminderKey)
+            .flatMap { try? JSONDecoder().decode(PauseRecord.self, from: $0) }
+        guard
+            var record = PauseReminder.update(
+                stored, installation: AlertScope.fingerprint(installation: installation),
+                scheduleEnabled: status.scheduleEnabled, revision: status.scheduleRevision, now: now)
+        else {
+            self.defaults.removeObject(forKey: Self.pauseReminderKey)
+            return
+        }
+        self.savePauseRecord(record)
+        guard PauseReminder.due(record, now: now), !self.holdDelivery, self.enabled, self.allowed else { return }
+        // This observation may have waited behind history and outbox work, and `deliver` awaits macOS:
+        // a newer read that shows scheduling resumed (or edited) wins over this snapshot, checked again
+        // just before the notification is submitted.
+        let pending = record
+        let stillPaused = { [weak self] () -> Bool in
+            guard let model = self?.model else { return false }
+            return PauseReminder.stillApplies(
+                pending, latestVerified: model.statusVerified, latestEnabled: model.status?.scheduleEnabled,
+                latestRevision: model.status?.scheduleRevision)
+        }
+        guard stillPaused() else { return }
+        let text = PauseReminder.content(since: record.since, zone: .current)
+        let content = AlertContent(
+            title: text.title, body: text.body, slot: "", identifier: Self.pauseReminderIdentifier)
+        guard await self.deliver(content, generation: generation, unless: stillPaused) else { return }
+        // The next day counts from when macOS accepted this one, not from before the awaits.
+        record.lastReminded = Self.now()
+        self.savePauseRecord(record)
+    }
+
+    private func savePauseRecord(_ record: PauseRecord) {
+        guard let data = try? JSONEncoder().encode(record) else { return }
+        self.defaults.set(data, forKey: Self.pauseReminderKey)
     }
 
     /// Adds an owed entry to the outbox (a slot already there is a no-op). False when the full outbox
@@ -344,7 +397,10 @@ final class AlertController: NSObject, ObservableObject {
     /// other reasons. Whatever could not be shown stays in the outbox for the next observation or
     /// launch; only switching alerts off drops it. True after a successful `add`, which removes exactly
     /// the delivered entries, announces and releases exactly their slots, and stores the accepted list.
-    private func deliver(_ content: AlertContent, generation: Int) async -> Bool {
+    /// `unless`, when given, is checked after the last await and just before submitting; false skips it.
+    private func deliver(_ content: AlertContent, generation: Int, unless stillValid: (() -> Bool)? = nil) async
+        -> Bool
+    {
         let center = UNUserNotificationCenter.current()
         let authorization = await center.notificationSettings().authorizationStatus
         // A newer baseline owns these slots.
@@ -353,12 +409,14 @@ final class AlertController: NSObject, ObservableObject {
             self.notAllowedNow()
             return false
         }
+        if let stillValid, !stillValid() { return false }
         let notification = UNMutableNotificationContent()
         notification.title = content.title
         notification.body = content.body
         notification.userInfo = ["slot": content.slot]
         do {
-            try await center.add(UNNotificationRequest(identifier: content.identifier, content: notification, trigger: nil))
+            try await center.add(
+                UNNotificationRequest(identifier: content.identifier, content: notification, trigger: nil))
             guard generation == self.generation, self.enabled else { return false }
             self.outbox = self.outbox.removing(slots: content.slots)
             self.saveOutbox()

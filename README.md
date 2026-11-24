@@ -7,7 +7,7 @@ It has two parts:
 - **The engine** is a small command-line program for Node 22, with no dependencies. A macOS LaunchAgent wakes it every 30 seconds, and it sends a warm-up only during a scheduled minute. It reads your accounts from [codex-router](https://github.com/duolahypercho/codex-router), so codex-router must already be installed and signed in.
 - **The Warm-up app** is an optional menu-bar app for macOS (Swift, in [`ui/`](ui/)). It shows the next warm-up, recent results, the schedule and each account. You can pause, resume, run now, edit times and set vacations from it. It only runs the engine's own commands.
 
-> **Use it at your own risk.** Warm-up is an independent project, not affiliated with or endorsed by OpenAI. Each warm-up is a real request, and it counts against your plan whether it succeeds, fails or ends uncertain. A successful warm-up proves only that the account answered at that moment. It does not add quota, keep a session warm or renew sign-ins. Check that automated requests are allowed under your plan's terms before you use it.
+> **Use it at your own risk.** Warm-up is an independent project, not affiliated with or endorsed by OpenAI. Each warm-up is a real request, and it counts against your plan whether it succeeds, fails or ends uncertain. A successful warm-up proves only that the account answered at that moment. It does not add quota, keep a session warm or renew sign-ins. Use it only with ChatGPT accounts you own, and check that automated requests are allowed under your plan's terms before you use it.
 
 ## Contents
 

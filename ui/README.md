@@ -12,6 +12,11 @@ A native macOS menu-bar companion for the existing Warm-up CLI. The CLI and its 
 - **Schedule:** today plus six days from `schedule inspect`, with weekday exclusions, repeated or nonexistent DST minutes and the next admission. Selecting a slot runs `schedule inspect --slot`. The detail separates whether a request was sent, whether a response was confirmed and the guidance. It always shows "Usage window effect unverified". **Copy redacted summary** copies reason codes and times only: no installation ID, account IDs or tokens.
 - **Accounts:** rows from `list`, which reads Router's registry without credentials or network.
 
+## Version 0.6.7 (24 November 2026): pause reminder and Help
+
+- **Pause reminder:** with alerts on, when scheduling has been paused for 24 hours or more, Warm-up posts one notification ("Scheduling is still paused"), then at most one every 24 hours until scheduling is resumed. A reminder that could not be shown is tried again at the next status read. The day is counted from when the app, with alerts on and allowed, first saw scheduling paused, so a pause that began while the app was closed or alerts were off is reminded about later. Each new pause starts its own day (the app compares the schedule revision), and so does a time edit made while paused. Help and the reminder say that pausing stops automatic warm-ups only; Warm Up Now still works. The alerts switch now reads "Notify me about missed warm-ups, problems and long pauses", and a reminder is checked against the newest status read just before it is shown. The reminder state is stored per engine installation (`pauseReminder`, a fingerprint, never the raw ID) and is cleared when alerts are switched off or the app is bound to another installation.
+- **Help:** a Help menu with "Warm-up Help" (Cmd-?) opens one window with a plain-words guide: what a warm-up is, using it only with accounts you own, when warm-ups run, what the marks mean, pausing, and what the app stores.
+
 ## Version 0.6.6 (24 November 2026): safer copied summaries and alerts after a rebind
 
 - **Copy Summary:** every engine value in a copied slot summary is checked against the codes the engine is known to send; anything else prints `other` or `unknown`, so no unexpected text can leak into a copied summary.

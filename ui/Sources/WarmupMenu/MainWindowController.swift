@@ -56,6 +56,7 @@ final class MainWindowController: NSObject, NSWindowDelegate {
     private let navigation = SidebarSelection()
     private var window: NSWindow?
     private var settingsWindow: NSWindow?
+    private let help = HelpWindowController()
     private var tabController: NSTabViewController?
     private var timer: Timer?
     private var selectionObservation: AnyCancellable?
@@ -89,6 +90,14 @@ final class MainWindowController: NSObject, NSWindowDelegate {
         if isNew { self.makeSettingsWindow() }
         self.present(self.settingsWindow, isNew: isNew)
         self.updateRefreshTimer()
+    }
+
+    /// Help (F16) counts as an open window for the app's Dock and Cmd-Tab presence, but not for
+    /// engine reads (`isVisible` leaves it out).
+    func showHelp() {
+        let (window, isNew) = self.help.prepared()
+        window.delegate = self
+        self.present(window, isNew: isNew)
     }
 
     private func present(_ window: NSWindow?, isNew: Bool) {
@@ -257,7 +266,7 @@ final class MainWindowController: NSObject, NSWindowDelegate {
         defer { self.closing = nil }
         self.updateRefreshTimer()
         // A minimized window is still open, so the app stays regular for it (its polling stops anyway).
-        let anyOpen = [self.window, self.settingsWindow].contains { window in
+        let anyOpen = [self.window, self.settingsWindow, self.help.window].contains { window in
             guard let window, window !== self.closing else { return false }
             return window.isVisible || window.isMiniaturized
         }

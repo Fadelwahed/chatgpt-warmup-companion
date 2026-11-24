@@ -1,8 +1,10 @@
 import AppKit
+import WarmupCore
 
 /// The main menu for the window. Warm-up runs as a menu-bar (accessory) app; while its window is
 /// open it becomes a regular app, so this menu gives the standard keyboard routes: Cmd-W, Cmd-M,
 /// Cmd-Q, the Edit commands for the time fields, and Cmd-1 to Cmd-3 for the sidebar panes, Cmd-comma for the Settings window and Cmd-R to refresh.
+/// The last menu, Help, opens the Warm-up Help window (Cmd-?).
 @MainActor
 final class MainMenu: NSObject {
     private let window: MainWindowController
@@ -59,8 +61,13 @@ final class MainMenu: NSObject {
                 NSMenuItem(title: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"),
             ])
         main.addItem(windowMenu)
+        let helpItem = NSMenuItem(title: HelpText.title, action: #selector(self.openHelp), keyEquivalent: "?")
+        helpItem.target = self
+        let helpMenu = self.submenu("Help", items: [helpItem])
+        main.addItem(helpMenu)
         NSApp.mainMenu = main
         NSApp.windowsMenu = windowMenu.submenu
+        NSApp.helpMenu = helpMenu.submenu
     }
 
     private func submenu(_ title: String, items: [NSMenuItem]) -> NSMenuItem {
@@ -92,4 +99,6 @@ final class MainMenu: NSObject {
     }
 
     @objc private func refresh() { self.window.refresh() }
+
+    @objc private func openHelp() { self.window.showHelp() }
 }

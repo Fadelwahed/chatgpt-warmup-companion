@@ -238,7 +238,7 @@ private struct SetupCardSection: View {
 
     var body: some View {
         Section("Finish setting up") {
-            Toggle("Notify me when a warm-up is missed or has problems", isOn: Binding(
+            Toggle("Notify me about missed warm-ups, problems and long pauses", isOn: Binding(
                 get: { self.alerts.enabled }, set: { self.alerts.setEnabled($0) }))
                 .disabled(!self.alerts.available || self.alerts.pending)
             Toggle("Open Warm-up at login", isOn: Binding(
@@ -712,10 +712,10 @@ private struct AlertsSection: View {
 
     var body: some View {
         Section("Alerts") {
-            Toggle("Notify me when a warm-up is missed or has problems", isOn: Binding(
+            Toggle("Notify me about missed warm-ups, problems and long pauses", isOn: Binding(
                 get: { self.alerts.enabled }, set: { self.alerts.setEnabled($0) }))
                 .disabled(!self.alerts.available || !self.model.isBound || self.alerts.pending)
-                .accessibilityHint("Off by default. Shows a notification when a scheduled warm-up is missed or finishes with problems")
+                .accessibilityHint("Off by default. Notifies you of missed or failed warm-ups, and once a day during a pause longer than a day")
             if self.alerts.pending {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)

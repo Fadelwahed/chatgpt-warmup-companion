@@ -451,6 +451,12 @@ final class AppModel: ObservableObject {
     }
 
     var isBound: Bool { self.client != nil }
+    /// The shown status came from the newest read through a verified binding (no read or binding issue),
+    /// and no action (a resume, say) is running or awaiting its follow-up read, which could change it.
+    var statusVerified: Bool {
+        self.bindingIssue == nil && self.readIssue == nil && self.status != nil && !self.mutating
+            && !self.actionPending
+    }
 
     /// Why the action buttons are dimmed, in words, or nil when they are available.
     var controlsUnavailableReason: String? {

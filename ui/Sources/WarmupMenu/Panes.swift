@@ -295,7 +295,7 @@ private struct TodaySection: View {
             self.open(mark)
         } label: {
             VStack(spacing: 4) {
-                Text(mark.time).font(.headline.monospacedDigit())
+                Text(mark.shown).font(.headline.monospacedDigit())
                 Text(mark.kind.glyph).font(.title3).foregroundStyle(mark.kind.tint)
                 Text(words).font(.callout).lineLimit(1)
             }
@@ -305,8 +305,8 @@ private struct TodaySection: View {
             .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.secondary.opacity(0.07)))
         }
         .buttonStyle(.plain)
-        .help("\(mark.time) \(words). Show details.")
-        .accessibilityLabel("Open \(mark.time) details")
+        .help("\(mark.shown) \(words). Show details.")
+        .accessibilityLabel("Open \(mark.shown) details")
         .accessibilityValue(words)
     }
 

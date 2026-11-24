@@ -41,15 +41,19 @@ public struct TodayMark: Sendable, Equatable {
         }
     }
 
+    /// The configured time ("13:00"): the slot's key, for clicks and identity.
     public let time: String
     public let kind: Kind
     /// The local date ("2026-11-22") the mark belongs to, when known.
     public let date: String?
+    /// The time it runs today ("13:10" after a move), shown to people; `time` when not moved.
+    public let shown: String
 
-    public init(time: String, kind: Kind, date: String? = nil) {
+    public init(time: String, kind: Kind, date: String? = nil, shown: String? = nil) {
         self.time = time
         self.kind = kind
         self.date = date
+        self.shown = shown ?? time
     }
 
     /// The full slot label ("2026-11-22T13:00") a click opens; nil without a date.
@@ -63,18 +67,27 @@ public struct TodayMark: Sendable, Equatable {
     /// admission has not passed, skipped when paused or skipped by choice, missed with another
     /// cause, and uncertain otherwise. Without a projection (`available` false) there are no marks:
     /// recorded ones alone would hide the times still to come.
-    public static func make(week: WeekDay?, admissions: [ProjectedAdmission], now: Int, available: Bool = true)
-        -> [TodayMark]
-    {
+    /// `ledger` is the engine's record of times that passed unsent: a recorded one keeps the minute
+    /// it was due then, even if the time was moved again later (0.6.8 review round 2).
+    public static func make(
+        week: WeekDay?, admissions: [ProjectedAdmission], now: Int, available: Bool = true, ledger: [LedgerRow] = []
+    ) -> [TodayMark] {
         guard available else { return [] }
         var byTime: [String: Kind] = [:]
+        var runs: [String: String] = [:]
         for slot in week?.slots ?? [] { byTime[slot.time] = Kind(slot.mark) }
+        for row in ledger where row.slot.hasPrefix((week?.date ?? "") + "T") && Self.isClock(row.admission) {
+            runs[String(row.slot.suffix(5))] = row.admission
+        }
         for admission in admissions {
             let time = String(admission.slot.suffix(5))
+            // A time moved for today (or for every day) is shown at the minute it runs, as on Schedule.
+            if runs[time] == nil, Self.isClock(admission.admission) { runs[time] = admission.admission }
             guard byTime[time] == nil else { continue }
             byTime[time] = Self.kind(admission, now: now)
         }
-        return byTime.sorted { $0.key < $1.key }.map { TodayMark(time: $0.key, kind: $0.value) }
+        return byTime.map { TodayMark(time: $0.key, kind: $0.value, shown: runs[$0.key]) }
+            .sorted { ($0.shown, $0.time) < ($1.shown, $1.time) }
     }
 
     /// Today's marks for `today` (060-FIX4 item 3), each carrying its full slot label; nil while the
@@ -87,8 +100,9 @@ public struct TodayMark: Sendable, Equatable {
         guard let today, let projection, ProjectionCheck.current(projection: projection, status: status, today: today)
         else { return nil }
         let admissions = projection.days.first { $0.date == today }?.admissions ?? []
-        return Self.make(week: week.first { $0.date == today }, admissions: admissions, now: now).map {
-            TodayMark(time: $0.time, kind: $0.kind, date: today)
+        let day = week.first { $0.date == today }
+        return Self.make(week: day, admissions: admissions, now: now, ledger: day == nil ? [] : status.slotLedger).map {
+            TodayMark(time: $0.time, kind: $0.kind, date: today, shown: $0.shown)
         }
     }
 
@@ -103,6 +117,15 @@ public struct TodayMark: Sendable, Equatable {
     public func cellWords(countdown: String?) -> String {
         let words = self.kind == .upcoming ? countdown ?? self.kind.words : self.kind.words
         return words.prefix(1).uppercased() + words.dropFirst()
+    }
+
+    /// "HH:mm" in ASCII digits, the only shape shown in place of the configured time.
+    static func isClock(_ text: String) -> Bool {
+        let parts = text.split(separator: ":", omittingEmptySubsequences: false)
+        guard parts.count == 2, parts.allSatisfy({ $0.count == 2 && $0.allSatisfy { ("0"..."9").contains($0) } }),
+            let hour = Int(parts[0]), let minute = Int(parts[1])
+        else { return false }
+        return hour < 24 && minute < 60
     }
 
     static func kind(_ admission: ProjectedAdmission, now: Int) -> Kind {
@@ -150,8 +173,8 @@ public enum MenuText {
         guard !marks.isEmpty else {
             return TodayLine(title: "Today:  no warm-ups", accessibilityLabel: "Today: no warm-ups.")
         }
-        let title = "Today:  " + marks.map { "\($0.kind.glyph) \($0.time)" }.joined(separator: "   ")
-        let spoken = "Today: " + marks.map { "\($0.time) \($0.kind.words)" }.joined(separator: ", ") + "."
+        let title = "Today:  " + marks.map { "\($0.kind.glyph) \($0.shown)" }.joined(separator: "   ")
+        let spoken = "Today: " + marks.map { "\($0.shown) \($0.kind.words)" }.joined(separator: ", ") + "."
         return TodayLine(title: title, accessibilityLabel: spoken)
     }
 

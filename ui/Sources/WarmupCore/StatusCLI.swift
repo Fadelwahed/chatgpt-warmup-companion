@@ -211,7 +211,7 @@ public enum StatusCLI {
         return Report(
             verdict: Self.verdict(glance, fields: fields, status: status, observedAt: observedAt),
             state: glance.state.rawValue, next: Self.next(status, fields: fields, now: now),
-            today: fields.today.map { Report.Time(time: $0.time, mark: $0.kind.rawValue) }, health: checks,
+            today: fields.today.map { Report.Time(time: $0.shown, mark: $0.kind.rawValue) }, health: checks,
             accounts: accounts,
             checkedAt: stamp.string(from: now),
             unresolvedSends: status.unresolved.isEmpty ? nil : status.unresolved.count,
@@ -336,12 +336,16 @@ public enum StatusCLI {
             let week = date.flatMap { WeekSummary.make(today: $0, status: status, history: []).last }
             let available = projection.map { StatusCLI.paired(projection: $0, status: status, today: date) } ?? false
             let admissions = projection?.days.first { $0.date == date }?.admissions ?? []
-            let marks = TodayMark.make(week: week, admissions: admissions, now: nowMs, available: available)
+            let marks = TodayMark.make(
+                week: week, admissions: admissions, now: nowMs, available: available,
+                ledger: week == nil ? [] : status.slotLedger)
             return Fields(
                 zone: StatusCLI.isZone(zone) ? zone : nil, date: date, nextWhen: when, nextDue: due,
                 batchSlot: status.activeBatch.map(\.slot).flatMap { StatusCLI.isSlot($0) ? $0 : nil },
                 problemSlot: glance.unseenProblemSlot.flatMap { StatusCLI.isSlot($0) ? $0 : nil },
-                today: marks.map { TodayMark(time: StatusCLI.safeTime($0.time), kind: $0.kind) })
+                today: marks.map {
+                    TodayMark(time: StatusCLI.safeTime($0.time), kind: $0.kind, shown: StatusCLI.safeTime($0.shown))
+                })
         }
     }
 

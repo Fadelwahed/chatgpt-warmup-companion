@@ -58,6 +58,30 @@ import Testing
         #expect(lines.contains("Account 2: Ready · No usage seen yet"))
     }
 
+    /// App 0.6.8 (review round 1): a time moved to 13:10 prints as 13:10 in both outputs.
+    @Test func movedTimePrintsWhenItRuns() throws {
+        let status = try self.withUsage()
+        let glance = GlanceBuilder.make(status: status, today: "2026-11-12", macZone: "Asia/Gaza")
+        let projection = try #require(
+            ReplyValidator.payload(
+                ScheduleProjection.self,
+                from: try Fixture.output("projection-default") { object in
+                    guard var days = object["days"] as? [[String: Any]],
+                        var admissions = days[0]["admissions"] as? [[String: Any]]
+                    else { return }
+                    for index in admissions.indices where admissions[index]["logicalTime"] as? String == "13:00" {
+                        admissions[index]["admission"] = "13:10"
+                    }
+                    days[0]["admissions"] = admissions
+                    object["days"] = days
+                }))
+        let text = StatusCLI.text(status: status, glance: glance, projection: projection, now: Self.now)
+        #expect(text.split(separator: "\n").contains("Today: ○ 08:00 ○ 13:10 ○ 18:00"))
+        let data = StatusCLI.json(status: status, glance: glance, projection: projection, now: Self.now)
+        let decoded = try JSONDecoder().decode(StatusCLI.Report.self, from: data)
+        #expect(decoded.today.map(\.time) == ["08:00", "13:10", "18:00"])
+    }
+
     @Test func outputsCarryNoIdentifiersOrPaths() throws {
         let status = try self.withUsage()
         let glance = GlanceBuilder.make(status: status, today: "2026-11-12")

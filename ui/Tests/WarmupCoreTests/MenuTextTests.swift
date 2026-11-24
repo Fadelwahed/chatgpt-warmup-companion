@@ -40,6 +40,49 @@ import Testing
         #expect(unknown.first?.kind == .uncertain)
     }
 
+    /// App 0.6.8: a time moved today (08:00 → 00:10) or every day (13:00 → 13:10) is shown and ordered
+    /// at the minute it runs, as Schedule shows it; the configured time stays the mark's key.
+    @Test func movedTimesShowWhenTheyRun() {
+        func admission(_ logical: String, runs: String, at: Int?, state: String) -> ProjectedAdmission {
+            ProjectedAdmission(
+                slot: "2026-11-12T\(logical)", logicalTime: logical, admission: runs, at: at, state: state,
+                cause: nil, repeatedLocalTime: nil, next: nil)
+        }
+        let admissions = [
+            admission("08:00", runs: "00:10", at: Self.at0800 - 470 * 60_000, state: "passed"),
+            admission("13:00", runs: "13:10", at: Self.at0800 + 310 * 60_000, state: "upcoming"),
+            admission("18:00", runs: "18:20", at: Self.at0800 + 620 * 60_000, state: "upcoming"),
+        ]
+        let week = WeekDay(
+            date: "2026-11-12", weekday: 4, slots: [WeekDay.Slot(date: "2026-11-12", time: "08:00", mark: .confirmed)],
+            manualRuns: 0)
+        let marks = TodayMark.make(week: week, admissions: admissions, now: Self.at0800)
+        #expect(marks.map(\.shown) == ["00:10", "13:10", "18:20"])
+        #expect(marks.map(\.time) == ["08:00", "13:00", "18:00"])
+        #expect(marks.map(\.kind) == [.confirmed, .upcoming, .upcoming])
+        let line = MenuText.today(marks: marks)
+        #expect(line.title == "Today:  ✓ 00:10   ○ 13:10   ○ 18:20")
+        #expect(line.accessibilityLabel == "Today: 00:10 confirmed, 13:10 upcoming, 18:20 upcoming.")
+        // A time recorded as missed at 13:00 and moved to 13:10 afterwards (a westward zone change
+        // makes that possible) stays at the minute the engine recorded (review round 2).
+        let missedWeek = WeekDay(
+            date: "2026-11-12", weekday: 4, slots: [WeekDay.Slot(date: "2026-11-12", time: "13:00", mark: .missed)],
+            manualRuns: 0)
+        let ledger = [
+            LedgerRow(slot: "2026-11-12T13:00", admission: "13:00", cause: "no_tick_between", zone: "UTC", at: 1)
+        ]
+        let recorded = TodayMark.make(
+            week: missedWeek, admissions: [admissions[1]], now: Self.at0800, ledger: ledger)
+        #expect(recorded.map(\.shown) == ["13:00"])
+        #expect(recorded.map(\.kind) == [.missed])
+        // Anything but a plain HH:mm keeps the configured time.
+        for odd in ["13:10:00", "1310", "25:00", "١٣:١٠", "13:10 sk-live"] {
+            let kept = TodayMark.make(
+                week: nil, admissions: [admission("13:00", runs: odd, at: nil, state: "upcoming")], now: Self.at0800)
+            #expect(kept.map(\.shown) == ["13:00"])
+        }
+    }
+
     /// 060-FIX2 item 6: without a projection, Today says the schedule is not available instead of
     /// claiming there are no warm-ups.
     @Test func todayWithoutAScheduleIsNotAvailable() {

@@ -106,11 +106,14 @@ This sends one warm-up to every enabled enrollment, right now. A successful manu
 warmup schedule enable
 ```
 
-This writes and loads the LaunchAgent `~/Library/LaunchAgents/local.codex-router-warmup.plist`. From then on, warm-ups go out at 08:00, 13:00 and 18:00 in your Mac's time zone, with no Terminal open. A slot passes unsent while your Mac is asleep or off, and the engine never sends it late. To have the Mac wake on its own, schedule a wake a few minutes before your first slot, for example:
+This writes and loads the LaunchAgent `~/Library/LaunchAgents/local.codex-router-warmup.plist`. From then on, warm-ups go out at 08:00, 13:00 and 18:00 in your Mac's time zone, with no Terminal open. A slot passes unsent while your Mac is asleep or off, and the engine never sends it late. To have a sleeping Mac wake for every warm-up, book a one-time wake 5 seconds into each warm-up of the next 7 days:
 
 ```sh
-sudo pmset repeat wakeorpoweron MTWRFSU 07:55:00
+scripts/schedule-wakes.sh --dry-run   # show the pmset commands first
+scripts/schedule-wakes.sh             # book them; asks for your password once
 ```
+
+Run it as yourself, not with `sudo`. It replaces only the wakes it booked before (owner `warmup` in `pmset -g sched`), so rerun it weekly and after any schedule change; `--cancel` removes them. A wake cannot start a Mac that is shut down. `pmset` keeps a single repeating wake, so `sudo pmset repeat wakeorpoweron MTWRFSU 07:55:00` covers only your first slot.
 
 ## Install the app
 

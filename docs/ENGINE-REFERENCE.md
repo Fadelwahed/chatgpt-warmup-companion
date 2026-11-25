@@ -34,6 +34,10 @@ Manual runs work with scheduling disabled and without an earlier pilot, subject 
 
 Each command emits one bounded protocolVersion-1 JSON object with command, outcome, sanitized reason, installationId, engineVersion and observedAt. `run` also always reports selected, attempted and individual results. Attempted counts transport dispatches, not reservations, success or quota spent.
 
+### Engine 1.2.4-offline (25 November 2026)
+
+A scheduled send that fails before anything is sent with `transport_before_send` and transport code `ENOTFOUND`, `EAI_AGAIN`, `ENETUNREACH`, `EHOSTUNREACH` or `ECONNREFUSED` is retried under the same reservation, up to 3 attempts in all, waiting 5 s before the second and 15 s before the third, and only while the batch deadline still leaves at least 45 s after the wait and every pre-send check passes again; manual runs keep a single attempt, and the history row describes only the last attempt. While a batch processes accounts the engine holds `/usr/bin/caffeinate -i -w <pid>` and releases it when the batch ends, and the hold fails open: if it cannot start, the batch runs exactly as before.
+
 ### Engine 1.2.3-offline (23 November 2026)
 
 Slot ledger rows now expire by their admission date, a day beyond the 30-day retention status uses, instead of by when they were written, so a row written late for an old admission (after a long pause or a catch-up) no longer outlives that retention. After upgrading, rows already beyond it go at the next tick or other pruning save, such as pausing or resuming; schedule edits save without pruning, as before.

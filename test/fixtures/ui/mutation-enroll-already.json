@@ -1,6 +1,6 @@
 {
   "protocolVersion": 1,
-  "engineVersion": "1.2.3-offline",
+  "engineVersion": "1.2.4-offline",
   "command": "enroll",
   "outcome": "ready",
   "reason": "already_enrolled",

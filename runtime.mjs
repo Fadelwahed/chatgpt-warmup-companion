@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { checkRootAncestors, safeRead, readRegistry, discoverIdentity, readCredential, revalidate, checkCompatibility } from './router-reader.mjs';
 import { probe, directRequest, safeTransportCode } from './chatgpt-probe.mjs';
 
@@ -17,6 +17,9 @@ const LOCAL_ZONE = 'local';
 const LEDGER_CAUSES = new Set(['zone_changed', 'schedule_disabled', 'compatibility_blocked', 'recovery_skip_through', 'clock_hold', 'manual_run_overlap', 'no_tick_between', 'schedule_spacing', 'no_scheduled_accounts']);
 const TIMES = ['08:00', '13:00', '18:00'];
 const scheduledBatchMs = accounts => accounts * 45000 + 30000;
+// Scheduled sends that failed on DNS/network before anything was sent: waits before attempts 2 and 3.
+const RETRY_CODES = new Set(['ENOTFOUND', 'EAI_AGAIN', 'ENETUNREACH', 'EHOSTUNREACH', 'ECONNREFUSED']);
+const RETRY_WAITS = [5000, 15000];
 const minimumSpacingMs = accounts => Math.max(15 * 60000, scheduledBatchMs(accounts));
 const validTime = value => typeof value === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
 const validDate = value => typeof value === 'string' && /^\d{4}-\d\d-\d\d$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(Date.parse(value)).toISOString().startsWith(value + 'T');
@@ -59,6 +62,11 @@ function read(base, name, services, limit = MAX_STATE, optional = false) {
   return safeRead(path.join(base.root, name), services, { root: base.root, limit, optional });
 }
 const adapter = (services, name, fallback) => services.reader?.[name] ?? fallback;
+// Fail open: a missing or broken power assertion never blocks or fails a send.
+const holdAwake = services => {
+  try { const release = services.power?.hold?.(); return typeof release === 'function' ? release : () => {}; }
+  catch { return () => {}; }
+};
 
 function atomic(base, name, value, services) {
   unchanged(base, services);
@@ -1673,12 +1681,14 @@ async function run(base, data, command, services, scheduled = false, slot = null
       recordUnprocessed(reason);
       return fail(reason, 2, out);
     };
+    let release = null;
     try {
     const ctx = contextFor(data);
     const compat = await adapter(services, 'checkCompatibility', checkCompatibility)(ctx, services);
     if (compat?.kind !== 'ready') return scheduled ? stopBatch('compatibility_blocked') : fail('compatibility_blocked', 2, out);
     if (!current.length) return { exitCode: 4, outcome: 'no_work', reason: 'no_enabled_enrollments', ...out };
-    for (const e of current) {
+    release = holdAwake(services);
+    accounts: for (const e of current) {
       const key = pilotKey(e, data.compatibility, data.config);
       let entry = { enrollmentId: e.enrollmentId, outcome: 'blocked', reason: 'unknown' };
       if (clockUnsafe()) { entry.reason = 'batch_deadline_or_clock'; record(entry, e, true); break; }
@@ -1727,10 +1737,10 @@ async function run(base, data, command, services, scheduled = false, slot = null
             unchanged(base, services);
             load(base, services);
             if (clockUnsafe()) { entry.reason = 'batch_deadline_or_clock'; record(entry, e, true, entry.reason, reservation); break; }
-            const dispatchWall = services.clock.wall();
-            if (!Number.isFinite(dispatchWall) || !Number.isFinite(credential.expiresAt) || credential.expiresAt - dispatchWall < 120000) { entry.reason = 'credential_expired_or_unknown'; record(entry, e, true, entry.reason, reservation); continue; }
+            const expiring = () => { const now = services.clock.wall(); return !Number.isFinite(now) || !Number.isFinite(credential.expiresAt) || credential.expiresAt - now < 120000; };
+            if (expiring()) { entry.reason = 'credential_expired_or_unknown'; record(entry, e, true, entry.reason, reservation); continue; }
             // Rechecked at the send boundary (after DNS/TLS); the cause is carried out for the batch decision.
-            let sendCheck = null;
+            let sendCheck = null, clockStop = false;
             const finalCheck = () => {
               const check = adapter(services, 'revalidate', revalidate)(ctx, e, credential.snapshot, services);
               if (typeof check?.then === 'function') { check.catch(() => {}); sendCheck = 'reader'; return false; }  // fail closed
@@ -1738,9 +1748,23 @@ async function run(base, data, command, services, scheduled = false, slot = null
               if (clockUnsafe()) { sendCheck = 'clock'; return false; }
               return true;
             };
-            const p = await adapter(services, 'probe', services.probe ?? probe)({ credential, model: e.model, ...(scheduled ? { batchDeadline: deadline } : {}), finalCheck }, services);
-            if (p?.dispatched === true) out.attempted++;
-            const trusted = ['success', 'blocked', 'uncertain'].includes(p?.outcome) && probeReasons.has(p?.reason) && (p.outcome !== 'success' || p.reason === 'marker_confirmed' && p.dispatched === true);
+            let p, trusted;
+            for (let attempt = 0; ; attempt++) {
+              sendCheck = null;
+              p = await adapter(services, 'probe', services.probe ?? probe)({ credential, model: e.model, ...(scheduled ? { batchDeadline: deadline } : {}), finalCheck }, services);
+              if (p?.dispatched === true) out.attempted++;
+              trusted = ['success', 'blocked', 'uncertain'].includes(p?.outcome) && probeReasons.has(p?.reason) && (p.outcome !== 'success' || p.reason === 'marker_confirmed' && p.dispatched === true);
+              // Scheduled only, and only when nothing was sent; the same reservation covers every attempt.
+              if (!scheduled || typeof services.clock.sleep !== 'function' || attempt >= RETRY_WAITS.length || !trusted || p.outcome !== 'blocked'
+                || p.reason !== 'transport_before_send' || p.dispatched !== false || !RETRY_CODES.has(p.transportCode)) break;
+              await services.clock.sleep(RETRY_WAITS[attempt]);
+              if (deadline - services.clock.mono() < 45000) break;
+              if (clockUnsafe()) { clockStop = true; break; }
+              unchanged(base, services);
+              load(base, services);
+              if (clockUnsafe()) { clockStop = true; break; }
+              if (expiring()) { entry.reason = 'credential_expired_or_unknown'; record(entry, e, true, entry.reason, reservation); continue accounts; }
+            }
             if (trusted && p.reason === 'send_check_failed' && p.dispatched !== true) {
               if (sendCheck === 'global') { entry.reason = 'reader_global_block'; record(entry, e, true, entry.reason, reservation); return stopBatch('reader_global_block'); }
               if (sendCheck === 'clock') { entry.reason = 'batch_deadline_or_clock'; record(entry, e, true, entry.reason, reservation); break; }
@@ -1758,7 +1782,8 @@ async function run(base, data, command, services, scheduled = false, slot = null
             }
             if (trusted && Number.isFinite(p.notBefore) && p.notBefore > services.clock.wall()) data.state.cooldowns[e.enrollmentId] = p.notBefore;
             record(entry, e, false, entry.reason, reservation);
-            if (scheduled && (services.clock.mono() >= deadline ||
+            // A clock jump during a retry wait keeps the last network result, then stops like the clock path.
+            if (clockStop || scheduled && (services.clock.mono() >= deadline ||
                 entry.reason === 'deadline_exceeded' || entry.reason === 'deadline_before_send')) break;
             continue;
           }
@@ -1772,6 +1797,8 @@ async function run(base, data, command, services, scheduled = false, slot = null
     } catch (error) {
       while (out.results.length < current.length) out.results.push({ enrollmentId: current[out.results.length].enrollmentId, outcome: 'blocked', reason: 'batch_unprocessed' });
       return fail(error?.[SAFE_REASON] ? error.reason : 'internal_error', 2, out);
+    } finally {
+      try { release?.(); } catch {}  // fail open
     }
   };
   if (scheduled) return perform();
@@ -2254,7 +2281,7 @@ export function hostServices(root, command = (file, args) => execFileSync(file, 
       try { return /^[-d][r-][w-][xsS-][r-][w-][xsS-][r-][w-][xtT-]@? +\d+ +\S+ +\S+ +\d+ +[A-Z][a-z]{2} +\d{1,2} +(?:\d{2}:\d{2}|\d{4}) +[^\x00-\x1f\x7f]+\n?(?![\s\S])/.test(String(run('/bin/ls', ['-lde', file]))); }
       catch { return false; }
     },
-    clock: { wall: () => Date.now(), mono: () => performance.now(), setTimeout, clearTimeout,
+    clock: { wall: () => Date.now(), mono: () => performance.now(), setTimeout, clearTimeout, sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
       zone() {
         let localtime;
         try { localtime = path.resolve('/etc', fs.readlinkSync('/etc/localtime')); }
@@ -2265,6 +2292,16 @@ export function hostServices(root, command = (file, args) => execFileSync(file, 
         return localtime.slice(prefix.length);
       },
     },
+    // Keeps the Mac awake while a batch runs; caffeinate also exits with this process (-w).
+    power: { hold() {
+      let child;
+      try { child = spawn('/usr/bin/caffeinate', ['-i', '-w', String(process.pid)], { stdio: 'ignore', env: { PATH: '/usr/bin:/bin' }, shell: false }); }
+      catch { return () => {}; }
+      child.on('error', () => {});  // a missing binary emits 'error' asynchronously; fail open
+      child.unref();
+      let released = false;
+      return () => { if (released) return; released = true; try { child.kill(); } catch {} };
+    } },
     request: directRequest,
     context: { root, nodePath, scriptPath },
     source: { inspect(sourceRoot, relativePaths) {

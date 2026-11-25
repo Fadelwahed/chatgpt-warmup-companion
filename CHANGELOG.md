@@ -4,6 +4,8 @@ Notable changes to Warm-up: the engine (`warmup.mjs` and its modules) and the me
 
 ## Unreleased
 
+- Engine 1.2.4-offline: a scheduled send that fails on DNS or the network before anything is sent is retried up to twice; the Mac is kept awake while a batch runs.
+
 ### App 0.6.9
 
 - **One time for each warm-up everywhere.** The Overview headline, "Needs a look", "Warming up", the sends-without-result groups, `--status`/`--json` and alerts name a time moved for one day (`--today`) at the minute it runs, as Today does. Slot labels stay the key for clicks, acknowledgements, alerts and copied diagnostics.

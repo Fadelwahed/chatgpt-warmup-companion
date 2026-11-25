@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { runCommand, hostServices } from './runtime.mjs';
 
-export const engineVersion = '1.2.3-offline';
+export const engineVersion = '1.2.4-offline';
 const scriptPath = fileURLToPath(import.meta.url);
 const MAX_OUTPUT = 1024 * 1024;
 const commands = ['setup', 'list', 'enroll', 'maintain', 'run', 'tick', 'status', 'history', 'timing', 'schedule', 'remove'];

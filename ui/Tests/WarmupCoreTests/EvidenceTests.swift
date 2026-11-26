@@ -205,7 +205,9 @@ import Testing
                 .init(enrollmentId: "enr_b", sent: 2, confirmed: 2),
             ])
         #expect(report.manual == 1)
-        #expect(report.details.contains("Missed because: nothing ran at that minute ×2."))
+        // 0.7.0: the cause line moved under the headline; only the copied text keeps "Missed because".
+        #expect(!report.details.contains { $0.contains("Missed because") })
+        #expect(report.text(zone: "Asia/Gaza").contains("Missed because: nothing ran at that minute ×2."))
         #expect(report.details.contains { $0.contains("1 ran but sent nothing") })
         #expect(report.details.contains { $0.contains("older days may be incomplete") })
         let text = report.text(zone: "Asia/Gaza")
@@ -217,6 +219,111 @@ import Testing
         #expect(text.contains("Account 2: 2 confirmed of 2 sent"))
         let empty = WeekReport.make(week: [], status: status, history: [], truncated: false, asOf: Self.eight)
         #expect(empty.headline == "No scheduled warm-ups recorded · the last 0 days")
+    }
+
+    /// Pinned before 0.7.0 moved the cause line out of `details` (order 133): the copied text must not change.
+    @Test func copiedWeeklyReportTextIsPinned() throws {
+        let status = try self.status {
+            $0["slotLedger"] = [
+                [
+                    "slot": "2026-11-11T13:00", "admission": "13:00", "cause": "no_tick_between", "zone": "Asia/Gaza",
+                    "at": Self.eight,
+                ],
+                [
+                    "slot": "2026-11-10T13:00", "admission": "13:00", "cause": "no_tick_between", "zone": "Asia/Gaza",
+                    "at": Self.eight,
+                ],
+                [
+                    "slot": "2026-11-10T08:00", "admission": "08:00", "cause": "compatibility_blocked",
+                    "zone": "Asia/Gaza", "at": Self.eight,
+                ],
+                [
+                    "slot": "2026-11-10T18:00", "admission": "18:00", "cause": "schedule_disabled", "zone": "Asia/Gaza",
+                    "at": Self.eight,
+                ],
+            ]
+            $0["lastSlotOutcome"] = NSNull()
+            $0["activeBatch"] = NSNull()
+        }
+        func row(_ id: String, _ slot: String, _ outcome: String, dispatched: Bool = true) -> HistoryEntry {
+            HistoryEntry(
+                enrollmentId: id, status: outcome, reason: "x", mode: "scheduled", slot: slot, at: Self.eight,
+                dispatched: dispatched)
+        }
+        let history = [
+            row("enr_a", "2026-11-11T08:00", "success"), row("enr_b", "2026-11-11T08:00", "success"),
+            row("enr_a", "2026-11-11T18:00", "success"), row("enr_b", "2026-11-11T18:00", "blocked", dispatched: false),
+            row("enr_a", "2026-11-12T08:00", "success"),
+            HistoryEntry(
+                enrollmentId: "enr_a", status: "success", reason: "x", mode: "manual", slot: nil, at: Self.eight,
+                dispatched: true),
+        ]
+        let week = WeekSummary.make(today: "2026-11-12", status: status, history: history)
+        let report = WeekReport.make(week: week, status: status, history: history, truncated: false, asOf: Self.eight)
+        #expect(report.causes.count == 2)
+        #expect(
+            report.text(zone: "Asia/Gaza") == """
+                Warm-up weekly report (read 2026-11-12 08:00 Asia/Gaza)
+                1 of 6 scheduled warm-ups confirmed · 6–12 Nov
+                Dates: 2026-11-06 to 2026-11-12
+                Also: 1 uncertain; 1 with problems; 3 missed; 1 skipped by your pause or account selection, not counted.
+                Missed because: nothing ran at that minute ×2, Router needed a review ×1.
+                1 manual account result.
+                Cause codes: no_tick_between ×2, compatibility_blocked ×1
+                Account 1: 3 confirmed of 3 sent
+                Account 2: 1 confirmed of 1 sent
+                """)
+    }
+
+    /// Order 133: the week's causes in one line under the headline.
+    @Test func causeLineCountsCausesAndRecordedSleep() throws {
+        func ledger(_ rows: [(String, String)]) throws -> EngineStatus {
+            try self.status {
+                $0["slotLedger"] = rows.map { slot, cause in
+                    [
+                        "slot": slot, "admission": String(slot.suffix(5)), "cause": cause, "zone": "Asia/Gaza",
+                        "at": Self.eight,
+                    ]
+                }
+                $0["lastSlotOutcome"] = NSNull()
+                $0["activeBatch"] = NSNull()
+            }
+        }
+        func report(_ status: EngineStatus, asleep: Set<String> = []) -> WeekReport {
+            let week = WeekSummary.make(today: "2026-11-12", status: status, history: [])
+            return WeekReport.make(
+                week: week, status: status, history: [], truncated: false, asOf: Self.eight, asleepSlots: asleep)
+        }
+        // No causes (an operator's own pause does not count): no line.
+        let none = report(try ledger([("2026-11-10T18:00", "schedule_disabled")]))
+        #expect(none.causeLine == nil)
+        let one = report(try ledger([("2026-11-11T13:00", "compatibility_blocked")]))
+        #expect(one.causeLine == "1 missed: Router needed a review ×1.")
+        let two = try ledger([
+            ("2026-11-10T08:00", "compatibility_blocked"), ("2026-11-10T13:00", "no_tick_between"),
+            ("2026-11-11T13:00", "no_tick_between"), ("2026-11-11T08:00", "no_tick_between"),
+        ])
+        // Ordered by count; the leading number is their sum.
+        #expect(report(two).causeLine == "4 missed: nothing ran at that minute ×3, Router needed a review ×1.")
+        // The bracket only on "nothing ran", only above zero, and a blocked slot's sleep is not counted.
+        let asleep = report(two, asleep: ["2026-11-10T13:00", "2026-11-11T13:00", "2026-11-10T08:00"])
+        #expect(asleep.asleepNoTick == 2)
+        #expect(
+            asleep.causeLine
+                == "4 missed: nothing ran at that minute ×3 (2 while the Mac was recorded asleep), Router needed a review ×1."
+        )
+        let blockedAsleep = report(
+            try ledger([("2026-11-11T13:00", "compatibility_blocked")]), asleep: ["2026-11-11T13:00"])
+        #expect(blockedAsleep.causeLine == "1 missed: Router needed a review ×1.")
+        for line in [one.causeLine, report(two).causeLine, asleep.causeLine].compactMap({ $0 }) {
+            #expect(!line.contains("because"))
+            #expect(!line.contains("_"))
+        }
+        // The copied text still has its "Missed because" line and no new cause line.
+        let text = asleep.text(zone: "Asia/Gaza")
+        #expect(text.contains("Missed because: nothing ran at that minute ×3, Router needed a review ×1."))
+        #expect(!text.contains("recorded asleep"))
+        #expect(!asleep.details.contains { $0.contains("Missed because") })
     }
 
     @Test func scopedOverrideNamesItsInstantAndNeedsTheFeature() throws {

@@ -125,7 +125,7 @@ import Testing
         #expect(unloaded.notes.first == "Pause and resume scheduling to start the background job again.")
         let blocked = GlanceBuilder.make(
             status: try self.status { $0["compatibility"] = "blocked" }, today: nil, macZone: "Asia/Gaza")
-        #expect(blocked.notes.first?.hasPrefix("Scheduled warm-ups wait") == true)
+        #expect(blocked.notes.first?.hasPrefix("codex-router changed. Scheduled warm-ups are skipped") == true)
         let fine = GlanceBuilder.make(status: try self.status(), today: "2026-11-12", macZone: "Asia/Gaza")
         #expect(fine.notes.isEmpty)
     }

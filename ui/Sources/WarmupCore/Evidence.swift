@@ -170,9 +170,13 @@ public struct WeekReport: Sendable, Equatable {
     public let ledgerMayBeCut: Bool
     /// When the evidence was read (epoch milliseconds).
     public let asOf: Int
+    /// "Nothing ran" misses in the week whose minute the app's sleep journal records the Mac asleep through.
+    public internal(set) var asleepNoTick = 0
 
+    /// `asleepSlots`: slot labels whose due minute the app recorded the Mac asleep through.
     public static func make(
-        week: [WeekDay], status: EngineStatus, history: [HistoryEntry], truncated: Bool, asOf: Int
+        week: [WeekDay], status: EngineStatus, history: [HistoryEntry], truncated: Bool, asOf: Int,
+        asleepSlots: Set<String> = []
     ) -> WeekReport {
         let dates = Set(week.map(\.date))
         // Slots where every account was held back by its daily cap are the operator's choice too.
@@ -198,9 +202,11 @@ public struct WeekReport: Sendable, Equatable {
             }
         }
         var causes: [String: Int] = [:]
+        var asleepNoTick = 0
         for row in status.slotLedger
         where dates.contains(String(row.slot.prefix(10))) && !SlotProblem.operatorChosenCauses.contains(row.cause) {
             causes[row.cause, default: 0] += 1
+            if row.cause == Self.noTickCause, asleepSlots.contains(row.slot) { asleepNoTick += 1 }
         }
         var sent: [String: Int] = [:]
         var confirmed: [String: Int] = [:]
@@ -226,10 +232,25 @@ public struct WeekReport: Sendable, Equatable {
             ledgerMayBeCut: status.slotLedger.count >= Self.ledgerLimit
                 && (status.slotLedger.map(\.slot).min().map { String($0.prefix(10)) >= (week.first?.date ?? "") }
                     ?? false),
-            asOf: asOf)
+            asOf: asOf, asleepNoTick: asleepNoTick)
     }
 
     static let ledgerLimit = 50
+    static let noTickCause = "no_tick_between"
+
+    /// "14 missed: nothing ran at that minute ×10 (7 while the Mac was recorded asleep), Router needed a
+    /// review ×4." States what was recorded; never that sleep caused a miss. Nil when nothing was missed.
+    public var causeLine: String? {
+        guard !self.causes.isEmpty else { return nil }
+        let total = self.causes.map(\.count).reduce(0, +)
+        let parts = self.causes.map { cause in
+            let asleep =
+                cause.cause == Self.noTickCause && self.asleepNoTick > 0
+                ? " (\(self.asleepNoTick) while the Mac was recorded asleep)" : ""
+            return "\(Wording.reason(cause.cause)) ×\(cause.count)\(asleep)"
+        }
+        return "\(total) missed: " + parts.joined(separator: ", ") + "."
+    }
 
     /// "Read at Thu 12 Nov 14:05 (Asia/Gaza)" for the on-screen report.
     public func readTime(zone: String) -> String {
@@ -246,7 +267,11 @@ public struct WeekReport: Sendable, Equatable {
         return "\(self.confirmed) of \(self.counted) scheduled warm-ups confirmed · \(span)"
     }
 
-    public var details: [String] {
+    /// The breakdown on screen; the cause line sits under the headline instead (`causeLine`).
+    public var details: [String] { self.lines(withCauses: false) }
+
+    /// The breakdown; the copied report keeps its "Missed because" line in the same place.
+    func lines(withCauses: Bool) -> [String] {
         var lines: [String] = []
         let other = [
             (self.uncertain, "uncertain"), (self.problems, "with problems"), (self.missed, "missed"),
@@ -254,7 +279,7 @@ public struct WeekReport: Sendable, Equatable {
             (self.skippedByChoice, "skipped by your pause or account selection, not counted"),
         ].filter { $0.0 > 0 }.map { "\($0.0) \($0.1)" }
         if !other.isEmpty { lines.append("Also: " + other.joined(separator: "; ") + ".") }
-        if !self.causes.isEmpty {
+        if withCauses, !self.causes.isEmpty {
             lines.append(
                 "Missed because: "
                     + self.causes.map { "\(Wording.reason($0.cause)) ×\($0.count)" }.joined(separator: ", ")
@@ -280,7 +305,7 @@ public struct WeekReport: Sendable, Equatable {
             self.headline,
         ]
         if !self.firstDate.isEmpty { lines.append("Dates: \(self.firstDate) to \(self.lastDate)") }
-        lines += self.details
+        lines += self.lines(withCauses: true)
         if !self.causes.isEmpty {
             lines.append("Cause codes: " + self.causes.map { "\($0.cause) ×\($0.count)" }.joined(separator: ", "))
         }

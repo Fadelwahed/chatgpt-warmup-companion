@@ -335,7 +335,12 @@ private struct LastSevenDaysSection: View {
 
     var body: some View {
         Section {
-            if let report = self.model.weekReport { Text(report.headline).font(.headline) }
+            if let report = self.model.weekReport {
+                Text(report.headline).font(.headline)
+                if let causes = report.causeLine {
+                    Text(causes).font(.callout).foregroundStyle(.secondary).accessibilityLabel(causes)
+                }
+            }
             if let stale = self.model.weekStaleLine { Text(stale).font(.callout) }
             WeekStrip(days: self.model.week) { slot in
                 self.openSchedule()
@@ -1474,13 +1479,18 @@ private struct SlotDetail: View {
                         }
                         if let missed = e.notAdmitted {
                             LabeledContent("Reason", value: Wording.reason(missed.cause))
-                            Text(Wording.guidance(missed.guidance)).font(.callout)
-                            if let sleep = self.model.sleepNote(for: e, zone: result.zone) {
-                                Label(sleep, systemImage: "moon.zzz").font(.callout)
+                            // What happened, whether it still applies, what to do; the sleep note keeps its symbol.
+                            let sleep = self.model.sleepNote(for: e, zone: result.zone)
+                            ForEach(Array(self.model.missLines(for: e, zone: result.zone).enumerated()), id: \.offset) {
+                                if $0.element == sleep {
+                                    Label($0.element, systemImage: "moon.zzz").font(.callout)
+                                } else {
+                                    Text($0.element).font(.callout)
+                                }
                             }
                         }
                         if let observed = e.heartbeat.observedAfterAdmission {
-                            LabeledContent("Background job checked in afterwards", value: observed ? "yes" : "no")
+                            Text(MissExplanation.jobLine(seenAfterwards: observed)).font(.callout)
                         }
                     }
                     ForEach(Array(e.accounts.enumerated()), id: \.offset) { index, account in

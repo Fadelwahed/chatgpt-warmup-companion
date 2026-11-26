@@ -176,14 +176,17 @@ public enum GlanceBuilder {
         var symbol: String?
         // One line of advice for states that need the operator; none guesses a cause.
         if status.compatibility != "ready" {
-            notes.append("Scheduled warm-ups wait until Router's compatibility is reviewed.")
+            notes.append("codex-router changed. Scheduled warm-ups are skipped until it is reviewed.")
         } else if status.clockHold != nil {
             notes.append("Check the Mac's date and time. Scheduling resumes once the clock passes its last reading.")
         } else if status.scheduleEnabled, status.job != "loaded" {
             notes.append("Pause and resume scheduling to start the background job again.")
         }
         var (state, headline): (GlanceState, String) = {
-            if status.compatibility != "ready" { return (.blocked, "Blocked: Router needs a review") }
+            if status.compatibility != "ready" {
+                let since = status.compatibilityBlockedSince
+                return (.blocked, Self.blockedHeadline(since: since, zone: zone, today: today))
+            }
             if status.clockHold != nil { return (.attention, "Held: the clock moved backward") }
             if !status.scheduleEnabled { return (.paused, "Paused") }
             if status.job != "loaded" { return (.attention, "Background job not running") }
@@ -239,6 +242,18 @@ public enum GlanceBuilder {
 
     static let scheduledPrefix = "All good · next "
     static let nextPrefix = "Next "
+    static let blockedFixed = "Blocked: Router needs a review"
+    static let blockedSincePrefix = "Blocked since "
+
+    /// "Blocked since 12:31: Router needs a review", or "since 22:10 yesterday" from an earlier day, in
+    /// the schedule zone. Without the engine's time or today's date, "Blocked: Router needs a review".
+    static func blockedHeadline(since: Int?, zone: String, today: String?) -> String {
+        guard let since, let today, let timeZone = TimeZone(identifier: zone) else { return Self.blockedFixed }
+        let label = FriendlyTime.formatter("yyyy-MM-dd'T'HH:mm", zone: timeZone)
+            .string(from: Date(timeIntervalSince1970: Double(since) / 1000))
+        let when = label.hasPrefix(today) ? String(label.suffix(5)) : FriendlyTime.slotShort(label, today: today)
+        return Self.blockedSincePrefix + when + ": Router needs a review"
+    }
 
     /// "All good · next 13:00" becomes "Next 13:00" when another headline takes its place.
     static func nextLine(_ headline: String) -> String {

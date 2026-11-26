@@ -455,6 +455,26 @@ final class AppModel: ObservableObject {
         return self.sleepJournal.explanation(admissionAt: at, zone: zone)
     }
 
+    /// Ledger slots whose recorded minute this app recorded the Mac asleep through, for the week's cause line.
+    func asleepSlots(_ status: EngineStatus) -> Set<String> {
+        Set(
+            status.slotLedger.compactMap { row in
+                guard let at = LedgerInstant.admissionAt(row),
+                    self.sleepJournal.asleep(from: at, to: at + 60_000) != nil
+                else { return nil }
+                return row.slot
+            })
+    }
+
+    /// A missed time's lines (what happened, now, what to do) against the current status; none without one.
+    func missLines(for explanation: SlotExplanation, zone: String) -> [String] {
+        guard let missed = explanation.notAdmitted, let status = self.status else { return [] }
+        return MissExplanation.lines(
+            cause: missed.cause, compatibility: status.compatibility, scheduleEnabled: status.scheduleEnabled,
+            clockHeld: status.clockHold != nil, asleepNote: self.sleepNote(for: explanation, zone: zone),
+            jobSeenAfterwards: explanation.heartbeat.observedAfterAdmission)
+    }
+
     var isBound: Bool { self.client != nil }
     /// The shown status came from the newest read through a verified binding (no read or binding issue),
     /// and no action (a resume, say) is running or awaiting its follow-up read, which could change it.
@@ -713,7 +733,7 @@ final class AppModel: ObservableObject {
             \.weekReport,
             WeekReport.make(
                 week: week, status: status, history: report.rows, truncated: truncated,
-                asOf: Self.nowMilliseconds()))
+                asOf: Self.nowMilliseconds(), asleepSlots: self.asleepSlots(status)))
         return true
     }
 

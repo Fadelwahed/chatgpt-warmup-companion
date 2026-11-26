@@ -391,6 +391,14 @@ public enum StatusCLI {
             let suffix = fields.zone.map { " (\($0))" }.flatMap { headline.hasSuffix($0) ? $0 : nil } ?? ""
             return GlanceBuilder.nextPrefix + (fields.nextWhen ?? Self.unknownText) + suffix + " · " + note
         }
+        // Blocked with the engine's time (0.7.0): rebuilt from the status, never the glance text; without a
+        // usable zone or date, the fixed headline.
+        if glance.state == .blocked, headline.hasPrefix(GlanceBuilder.blockedSincePrefix) {
+            guard let zone = fields.zone, let since = status.compatibilityBlockedSince else {
+                return GlanceBuilder.blockedFixed
+            }
+            return GlanceBuilder.blockedHeadline(since: since, zone: zone, today: fields.date)
+        }
         if headline.hasPrefix(Self.checkInPrefix), let tick = status.lastTick, let observedAt, let zone = fields.zone {
             return HeartbeatCheck.headline(tick: tick, observedAt: observedAt, zone: zone)
         }

@@ -337,6 +337,48 @@ import Testing
             #expect(!output.contains(admission))
         }
     }
+
+    /// 0.7.0 (order 133): while Router is blocked, the headline says since when; the CLI rebuilds it
+    /// from the status, never prints "unknown", and keeps its exit code.
+    @Test func blockedHeadlineSaysSinceWhen() throws {
+        let today = Self.at0800 - 3 * 3_600_000  // 05:00 on 12 Nov in Asia/Gaza
+        let earlier = Self.at0800 - (9 * 60 + 50) * 60_000  // 22:10 on 11 Nov
+        func blocked(since: Int?) throws -> EngineStatus {
+            try self.status {
+                $0["compatibility"] = "blocked"
+                $0["compatibilityBlockedSince"] = since.map { $0 as Any } ?? NSNull()
+            }
+        }
+        let note = "codex-router changed. Scheduled warm-ups are skipped until it is reviewed."
+        let cases: [(Int?, String)] = [
+            (today, "Blocked since 05:00: Router needs a review"),
+            (earlier, "Blocked since 22:10 yesterday: Router needs a review"),
+            (nil, "Blocked: Router needs a review"),
+        ]
+        var codes: Set<Int32> = []
+        for (since, headline) in cases {
+            let status = try blocked(since: since)
+            let glance = GlanceBuilder.make(
+                status: status, today: "2026-11-12", observedAt: Self.observedNow, macZone: "Asia/Gaza")
+            #expect(glance.state == .blocked)
+            #expect(glance.headline == headline)
+            #expect(glance.notes.first == note)
+            let report = StatusCLI.report(
+                status: status, glance: glance, projection: try self.projection(), now: Self.now,
+                observedAt: Self.observedNow)
+            #expect(report.verdict == headline)
+            let snapshot = StatusCLI.Snapshot(
+                status: status, observedAt: Self.observedNow, projection: try self.projection())
+            let rendered = StatusCLI.render(snapshot, json: false, now: Self.now, acknowledgedSlot: nil)
+            let first = String(decoding: rendered.stdout, as: UTF8.self).split(separator: "\n").first
+            #expect(first.map(String.init) == headline)
+            codes.insert(rendered.code)
+        }
+        #expect(codes.count == 1, "the blocked exit code does not depend on the time")
+        // Without today's date the headline stays fixed.
+        let unknownDay = GlanceBuilder.make(status: try blocked(since: today), today: nil, macZone: "Asia/Gaza")
+        #expect(unknownDay.headline == "Blocked: Router needs a review")
+    }
 }
 
 /// 060-FIX4 item 2: `StatusCLI.read` pairs a status with a projection of the same schedule. A fake

@@ -9,6 +9,7 @@
 # It never touches the engine, its folder or the "warmup" wakes.
 #   scripts/wake-test.sh                  book the wakes, start the watcher (asks for your password once)
 #   scripts/wake-test.sh --allow-display  the same, even with an external display attached
+#   scripts/wake-test.sh --quick          one wake 2 minutes out, mode 5 (caffeinate -u -s -i); about 5 minutes
 #   scripts/wake-test.sh --report         read the newest run against pmset -g log; cancel leftover wakes
 #   scripts/wake-test.sh --dry-run        print the pmset commands and the plan; change nothing
 #   scripts/wake-test.sh --cancel         cancel the booked test wakes and stop a running watcher
@@ -36,22 +37,42 @@ CACHE_BIN=/usr/bin/dscacheutil
 DNS_BIN=/usr/bin/host
 RUN_LIMIT_S=1500         # the watcher stops 25 minutes after it starts
 LID_CLOSED_S=1200        # "leave it closed until" T+20 minutes
+QUICK_MODE=5             # --quick: the one booked wake takes every hold at once
+QUICK_LEAD_S=120         # --quick: one wake 2 minutes out
+QUICK_RUN_LIMIT_S=480    # --quick: the watcher stops 8 minutes after it starts
+QUICK_LID_CLOSED_S=300   # --quick: "leave it closed until" T+5 minutes
 
 fail() { echo "wake-test: $*" >&2; exit 1; }
 
-mode=run dry=0 allow_display=0 watch_dir=
+# Switches to the quick plan: one booked wake, mode 5, shorter limits.
+use_quick() {
+  quick=1 WAKE_COUNT=1 WAKE_STEP_S=$QUICK_LEAD_S RUN_LIMIT_S=$QUICK_RUN_LIMIT_S LID_CLOSED_S=$QUICK_LID_CLOSED_S
+}
+
+# The mode booked wake N takes: N in the four-wake run, mode 5 in the quick run; 0 stays 0.
+wake_mode() {
+  if [ "$quick" = 1 ] && [ "$1" != 0 ]; then echo "$QUICK_MODE"; else echo "$1"; fi
+}
+
+# A run folder's plan.txt marks a quick run with a "quick=1" line.
+plan_is_quick() { grep -qx 'quick=1' "$1" 2>/dev/null; }
+
+mode=run dry=0 allow_display=0 watch_dir= quick=0 quick_flag=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) dry=1 ;;
     --allow-display) allow_display=1 ;;
+    --quick) quick_flag=1 ;;
     --report) mode=report ;;
     --cancel) mode=cancel ;;
     --self-test) mode=selftest ;;
     --watch) [ $# -ge 2 ] || fail "--watch needs a run folder."; mode=watch; watch_dir=$2; shift ;;
-    *) fail "unknown argument: $1 (use --dry-run, --allow-display, --report, --cancel or --self-test)" ;;
+    *) fail "unknown argument: $1 (use --dry-run, --allow-display, --quick, --report, --cancel or --self-test)" ;;
   esac
   shift
 done
+# Only booking reads the flag; the watcher and --report learn a quick run from plan.txt.
+if [ "$mode" = run ] && [ "$quick_flag" = 1 ]; then use_quick; fi
 
 [ "$(uname -s)" = Darwin ] || fail "macOS only."
 [ "$(id -u)" != 0 ] || fail "run it as yourself, not with sudo; it asks for your password when it needs it."
@@ -69,6 +90,7 @@ mode_name() {
     2) echo "caffeinate -i -t $WINDOW_S" ;;
     3) echo "caffeinate -u -t $WINDOW_S" ;;
     4) echo "caffeinate -s -i -t $WINDOW_S" ;;
+    5) echo "caffeinate -u -s -i -t $WINDOW_S" ;;
     0) echo "none unbooked" ;;
     *) echo "none" ;;
   esac
@@ -164,7 +186,7 @@ kill_own() {
 selftest=0 probes=1 FAKE_CLOCK= NOW=0 DIR= LOG= POWER= BOOKED=
 
 reset_watch_state() {
-  wake=0 wake_at=0 win_end=0 next_tick=0 last_t=0 cur_mode=0 last_done=0 used=' '
+  wake=0 wake_at=0 win_end=0 next_tick=0 last_t=0 cur_mode=0 cur_booked=0 last_done=0 used=' '
   cache_state=pending dns_state=pending caf_pid=
 }
 
@@ -185,9 +207,9 @@ pause() { [ "$selftest" = 1 ] || sleep 1; }
 
 log_line() { printf '%s %s\n' "$(date -r "$NOW" +%H:%M:%S)" "$*" >> "$LOG"; }
 
-# The booked wake (1-4) whose time is from MATCH_BEFORE_S before to MATCH_AFTER_S after the
+# The booked wake (1-4; 1 in a quick run) whose time is from MATCH_BEFORE_S before to MATCH_AFTER_S after the
 # epoch and that no earlier wake matched; 0 when none does. BOOKED is "N:epoch N:epoch ...".
-booked_mode() {
+booked_wake() {
   for booking in $BOOKED; do
     bn=${booking%%:*} bat=${booking#*:}
     case "$used" in *" $bn "*) continue ;; esac
@@ -208,6 +230,7 @@ start_assertion() {
   case "$1" in
     2) /usr/bin/caffeinate -i -t "$WINDOW_S" </dev/null >/dev/null 2>&1 & ;;
     3) /usr/bin/caffeinate -u -t "$WINDOW_S" </dev/null >/dev/null 2>&1 & ;;
+    5) /usr/bin/caffeinate -u -s -i -t "$WINDOW_S" </dev/null >/dev/null 2>&1 & ;;
     *) /usr/bin/caffeinate -s -i -t "$WINDOW_S" </dev/null >/dev/null 2>&1 & ;;
   esac
   caf_pid=$!
@@ -297,7 +320,7 @@ close_window() {
   stop_assertion
   log_line "END n=$wake mode=$cur_mode last_t=+$last_t reason=$1"
   win_end=0
-  if [ "$cur_mode" = "$WAKE_COUNT" ]; then last_done=1; fi
+  if [ "$cur_booked" = "$WAKE_COUNT" ]; then last_done=1; fi
 }
 
 watch_loop() {
@@ -311,8 +334,9 @@ watch_loop() {
       close_window slept
       if [ "$last_done" = 1 ]; then log_line "EXIT reason=after-booked-wake-$WAKE_COUNT"; return 0; fi
       if [ "$NOW" -ge "$deadline" ]; then log_line "EXIT reason=time-limit"; return 0; fi
-      cur_mode=$(booked_mode "$NOW")
-      [ "$cur_mode" = 0 ] || used="$used$cur_mode "
+      cur_booked=$(booked_wake "$NOW")
+      [ "$cur_booked" = 0 ] || used="$used$cur_booked "
+      cur_mode=$(wake_mode "$cur_booked")
       wake=$((wake + 1)) wake_at=$NOW win_end=$((NOW + WINDOW_S)) next_tick=$NOW last_t=0
       cache_state=pending dns_state=pending
       log_line "WAKE n=$wake epoch=$NOW gap=$gap mode=$cur_mode assertion=$(mode_name "$cur_mode")"
@@ -340,6 +364,7 @@ run_watcher() {
   DIR=$watch_dir LOG=$watch_dir/watch.log
   [ -d "$DIR" ] || fail "no run folder at $DIR."
   [ -f "$DIR/plan.txt" ] || fail "no plan.txt in $DIR."
+  if plan_is_quick "$DIR/plan.txt"; then use_quick; fi
   BOOKED=$(awk '$1 ~ /^[0-9]+$/ { printf "%s:%s ", $1, $2 }' "$DIR/plan.txt")
   [ -n "$BOOKED" ] || fail "plan.txt in $DIR lists no wakes."
   echo $$ > "$DIR/watch.pid"
@@ -432,7 +457,38 @@ self_test() {
   check "no wake uses mode 2" count_in "$LOG" ' WAKE .* mode=2 ' 0
   check "the watcher still stops after booked wake 4's window" count_in "$LOG" ' EXIT reason=after-booked-wake-4$' 1
 
-  # 6. The two probes, run in the background with stubs in place of dscacheutil and host
+  # 6. The quick plan (as the watcher reads it from a plan.txt with quick=1): one booked wake, mode 5.
+  printf '# wake-test plan\nquick=1\nstart 1000 x\n1 1060 x mode=5\n' > "$tmp/plan.txt"
+  check "a plan.txt with quick=1 is read as a quick run" plan_is_quick "$tmp/plan.txt"
+  use_quick
+  BOOKED="1:1060"
+  LOG=$tmp/quick.log
+  reset_watch_state
+  FAKE_CLOCK="$(fake_range 1000 1005 1) $(fake_range 1065 1225 10) 1300"
+  watch_loop
+  check "quick: the watcher stops 8 minutes after it starts" count_in "$LOG" ' START epoch=1000 .* deadline=1480 ' 1
+  check "quick: exactly one wake" count_in "$LOG" ' WAKE ' 1
+  check "quick: a 60 s gap at the booked time is wake 1 with mode 5" count_in "$LOG" ' WAKE n=1 epoch=1065 gap=60 mode=5 assertion=caffeinate -u -s -i -t 150$' 1
+  check "quick: mode 5 would take caffeinate -u -s -i (not run)" count_in "$LOG" ' ASSERT n=1 mode=5 self-test, not run: /usr/bin/caffeinate -u -s -i -t 150$' 1
+  check "quick: wake 1 ends at its 150 s window" count_in "$LOG" ' END n=1 mode=5 .* reason=window$' 1
+  check "quick: the watcher stops after the one booked wake's window" count_in "$LOG" ' EXIT reason=after-booked-wake-1$' 1
+
+  LOG=$tmp/quick-unbooked.log
+  reset_watch_state
+  FAKE_CLOCK="$(fake_range 1000 1004 1) $(fake_range 1030 1040 10) $(fake_range 1065 1225 10)"
+  watch_loop
+  check "quick: a wake at no booked time is mode 0" count_in "$LOG" ' WAKE n=1 epoch=1030 gap=26 mode=0 assertion=none unbooked$' 1
+  check "quick: the unbooked wake takes no assertion" count_in "$LOG" ' ASSERT n=1 ' 0
+  check "quick: the booked wake after it still uses mode 5" count_in "$LOG" ' WAKE n=2 epoch=1065 .* mode=5 ' 1
+
+  LOG=$tmp/quick-limit.log
+  reset_watch_state
+  FAKE_CLOCK="$(fake_range 1000 1600 10)"
+  watch_loop
+  check "quick: with no wake the watcher stops at its 8-minute limit" count_in "$LOG" ' EXIT reason=time-limit$' 1
+  check "quick: no wake without a gap" count_in "$LOG" ' WAKE ' 0
+
+  # 7. The two probes, run in the background with stubs in place of dscacheutil and host
   #    (no real lookup). The clock is real here; NOW is moved by hand for the timeout.
   probes=1 wake_at=$(date +%s)
   mkdir -p "$tmp/bin"
@@ -508,6 +564,7 @@ report() {
   [ -n "$run_name" ] || fail "no run found in $LOG_ROOT."
   dir=$LOG_ROOT/$run_name
   [ -f "$dir/plan.txt" ] || fail "no plan.txt in $dir."
+  if plan_is_quick "$dir/plan.txt"; then use_quick; fi
   watch_log=$dir/watch.log
   [ -f "$watch_log" ] || watch_log=/dev/null
   start=$(awk '$1 == "start" { print $2 }' "$dir/plan.txt")
@@ -525,6 +582,7 @@ report() {
   prev=$(stamp "$start")
   for row in $(awk '$1 ~ /^[0-9]+$/ { print $1 ":" $2 }' "$dir/plan.txt"); do
     n=${row%%:*} at=${row#*:}
+    m=$(wake_mode "$n")
     at_s=$(stamp "$at")
     echo
     echo "Wake $n, booked for $at_s:"
@@ -543,8 +601,8 @@ report() {
       *) kind="no wake line" ;;
     esac
 
-    # The watcher logs the booked wake it matched as the mode (wake N = mode N).
-    wline=$(awk -v m="mode=$n" '$2 == "WAKE" && $6 == m { print; exit }' "$watch_log")
+    # The watcher logs the booked wake it matched as the mode (wake N = mode N; mode 5 in a quick run).
+    wline=$(awk -v m="mode=$m" '$2 == "WAKE" && $6 == m { print; exit }' "$watch_log")
     if [ -n "$wline" ]; then
       wn=$(field "$wline" n)
       wassert=$(printf '%s\n' "$wline" | sed -n 's/.* assertion=//p')
@@ -557,11 +615,11 @@ report() {
         slept) awake_txt="$awake (last line; it slept within ${TICK_S} s after)" ;;
         *) awake_txt="$awake (watcher end: ${reason:-not recorded})" ;;
       esac
-      echo "  Watcher: wake $wn at $(date -r "$(field "$wline" epoch)" +%H:%M:%S), mode $n ($wassert)"
+      echo "  Watcher: wake $wn at $(date -r "$(field "$wline" epoch)" +%H:%M:%S), mode $m ($wassert)"
       echo "  Seconds awake: $awake_txt"
     else
-      wassert=$(mode_name "$n") awake=- dns_ok= cache_ok=
-      echo "  Watcher: no wake detected at this booked time (mode $n not used)."
+      wassert=$(mode_name "$m") awake=- dns_ok= cache_ok=
+      echo "  Watcher: no wake detected at this booked time (mode $m not used)."
     fi
     if [ -n "$slept" ]; then echo "  Slept before: yes (Sleep at $slept)"; void=; else echo "  VOID: the Mac did not sleep"; void=VOID; fi
     echo "  Kind: $kind"
@@ -570,7 +628,7 @@ report() {
     echo "  First lookup success (DNS server, host): $dns_txt"
     echo "  First lookup success (system resolver, may be cached): $cache_txt"
     table="$table
-$n|$(date -r "$at" +%H:%M:%S)|$n|$wassert|$kind|$awake|$dns_txt|$cache_txt|$void"
+$n|$(date -r "$at" +%H:%M:%S)|$m|$wassert|$kind|$awake|$dns_txt|$cache_txt|$void"
     wn=
   done
 
@@ -640,24 +698,30 @@ a watcher is already running; wait for it or use --cancel."
   n=1
   while [ "$n" -le "$WAKE_COUNT" ]; do
     at=$((base + n * WAKE_STEP_S + WAKE_SECOND))
+    m=$(wake_mode "$n")
     plan="$plan
-$n $at $(stamp "$at") mode=$n $(mode_name "$n")"
+$n $at $(stamp "$at") mode=$m $(mode_name "$m")"
     n=$((n + 1))
   done
   until_hm=$(date -r $((now + LID_CLOSED_S)) +%H:%M)
+  lid_txt="Close the lid now. Leave it closed until $until_hm (T+$((LID_CLOSED_S / 60)) min). Then run scripts/wake-test.sh --report."
 
   if [ "$dry" = 1 ]; then
     echo "Dry run: nothing booked, nothing started. Power: $power; the run folder would be $dir."
     printf '%s\n' "$plan" | awk '$1 ~ /^[0-9]+$/ { print $2 }' | while read -r at; do pmset_schedule add "$(pmset_when "$at")"; done
     echo "Plan:"
     printf '%s\n' "$plan" | awk '$1 ~ /^[0-9]+$/ { $2 = ""; print "  wake " $0 }'
-    echo "A real run would then say: Close the lid now. Leave it closed until $until_hm (T+20 min). Then run scripts/wake-test.sh --report."
+    echo "A real run would then say: $lid_txt"
     return 0
   fi
 
   [ ! -e "$dir" ] || fail "$dir already exists; wait a minute and run again."
   mkdir -p "$dir" || fail "cannot create $dir."
-  printf '# wake-test plan, owner %s, wake N uses mode N\n%s\n' "$OWNER" "$plan" > "$dir/plan.txt"
+  if [ "$quick" = 1 ]; then
+    printf '# wake-test plan, owner %s, quick run: wake 1 uses mode %s\nquick=1\n%s\n' "$OWNER" "$QUICK_MODE" "$plan" > "$dir/plan.txt"
+  else
+    printf '# wake-test plan, owner %s, wake N uses mode N\n%s\n' "$OWNER" "$plan" > "$dir/plan.txt"
+  fi
 
   leftovers=$(booked_test_wakes)
   if [ -n "$leftovers" ]; then cancel_test_wakes; fi
@@ -677,10 +741,10 @@ $n $at $(stamp "$at") mode=$n $(mode_name "$n")"
   sleep 1
   is_watcher "$watcher" || { cancel_test_wakes; fail "the watcher did not start; see $dir/watch.log."; }
 
-  echo "Booked four $OWNER wakes:"
+  if [ "$quick" = 1 ]; then echo "Booked one $OWNER wake:"; else echo "Booked four $OWNER wakes:"; fi
   pmset -g sched | grep "by '$OWNER'" || true
   echo "Power: $power (run $run_name). Watcher PID $watcher; log $dir/watch.log"
-  echo "Close the lid now. Leave it closed until $until_hm (T+20 min). Then run scripts/wake-test.sh --report."
+  echo "$lid_txt"
 }
 
 case "$mode" in

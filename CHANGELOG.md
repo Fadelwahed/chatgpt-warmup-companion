@@ -7,6 +7,7 @@ Notable changes to Warm-up: the engine (`warmup.mjs` and its modules) and the me
 - Engine 1.2.4-offline: a scheduled send that fails on DNS or the network before anything is sent is retried up to twice; the Mac is kept awake while a batch runs.
 - `scripts/schedule-wakes.sh` books a one-time macOS wake 5 seconds into each warm-up of the next 7 days (one password prompt; `--dry-run`, `--cancel`), replacing only the wakes it booked before.
 - `scripts/wake-test.sh` tests whether a booked wake with the lid closed stays awake long enough for a warm-up: four `waketest` wakes, a detached watcher, and `--report` against `pmset -g log` (`--dry-run`, `--cancel`, `--self-test`).
+- `scripts/wake-test.sh --quick`: one test wake with every hold at once, about 5 minutes per run.
 
 ### App 0.7.3
 

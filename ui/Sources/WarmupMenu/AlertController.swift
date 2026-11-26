@@ -29,6 +29,10 @@ final class AlertController: NSObject, ObservableObject {
     static let pauseReminderKey = "pauseReminder"
     /// The fixed notification identifier, so a new reminder replaces the last one.
     static let pauseReminderIdentifier = "pause-reminder"
+    /// `CompatibilityRecord` JSON: the current blocking episode and whether it was announced; no IDs.
+    static let compatibilityAlertKey = "compatibilityAlert"
+    /// The fixed notification identifier, so a new episode's alert replaces the last one.
+    static let compatibilityAlertIdentifier = "compatibility-blocked"
     static let notAllowed =
         "Alerts are on, but notifications are not allowed for Warm-up. You can allow them in System Settings > Notifications."
     static let notAsked =
@@ -155,6 +159,7 @@ final class AlertController: NSObject, ObservableObject {
             self.defaults.removeObject(forKey: Self.coveredThroughKey)
             self.defaults.removeObject(forKey: Self.announcedKey)
             self.defaults.removeObject(forKey: Self.pauseReminderKey)
+            self.defaults.removeObject(forKey: Self.compatibilityAlertKey)
             self.outbox = AlertOutbox(installation: fingerprint)
             self.outboxStore?.remove()
             self.refused = false
@@ -193,6 +198,7 @@ final class AlertController: NSObject, ObservableObject {
             self.defaults.removeObject(forKey: Self.coveredThroughKey)
             self.defaults.removeObject(forKey: Self.announcedKey)
             self.defaults.removeObject(forKey: Self.pauseReminderKey)
+            self.defaults.removeObject(forKey: Self.compatibilityAlertKey)
             self.outbox = AlertOutbox()
             self.outboxStore?.remove()
             self.refused = false
@@ -308,6 +314,7 @@ final class AlertController: NSObject, ObservableObject {
             self.showStorageIssue()
             self.storeCoveredThrough()
             await self.remindIfPaused(installation: installation, status: status, generation: generation)
+            await self.alertIfBlocked(installation: installation, status: status, generation: generation)
         }
     }
 
@@ -350,6 +357,52 @@ final class AlertController: NSObject, ObservableObject {
     private func savePauseRecord(_ record: PauseRecord) {
         guard let data = try? JSONEncoder().encode(record) else { return }
         self.defaults.set(data, forKey: Self.pauseReminderKey)
+    }
+
+    /// Work order 125: while compatibility blocks Warm-up, one alert per blocking episode, straight
+    /// away. An ongoing condition like the pause reminder: no baseline suppression and no outbox; a
+    /// failed delivery is retried at the next observation.
+    private func alertIfBlocked(installation: String, status: EngineStatus, generation: Int) async {
+        // `remindIfPaused` may have awaited macOS: alerts switched off or a scope reset since then
+        // cleared the key, and it must not be written back.
+        guard generation == self.generation, self.enabled else { return }
+        let stored = self.defaults.data(forKey: Self.compatibilityAlertKey)
+            .flatMap { try? JSONDecoder().decode(CompatibilityRecord.self, from: $0) }
+        guard
+            var record = CompatibilityAlert.update(
+                stored, installation: AlertScope.fingerprint(installation: installation),
+                compatibility: status.compatibility, blockedSince: status.compatibilityBlockedSince)
+        else {
+            self.defaults.removeObject(forKey: Self.compatibilityAlertKey)
+            return
+        }
+        self.saveCompatibilityRecord(record)
+        guard CompatibilityAlert.due(record), !self.holdDelivery, self.enabled, self.allowed else { return }
+        // A newer read that shows compatibility ready, or another episode, wins over this snapshot,
+        // checked again just before the notification is submitted.
+        let pending = record
+        let stillBlocked = { [weak self] () -> Bool in
+            guard let model = self?.model else { return false }
+            return CompatibilityAlert.stillApplies(
+                pending, latestVerified: model.statusVerified, latestCompatibility: model.status?.compatibility,
+                latestBlockedSince: model.status?.compatibilityBlockedSince)
+        }
+        guard stillBlocked() else { return }
+        let text = CompatibilityAlert.content()
+        let content = AlertContent(
+            title: text.title, body: text.body, slot: "", identifier: Self.compatibilityAlertIdentifier)
+        guard await self.deliver(content, generation: generation, unless: stillBlocked) else { return }
+        // Switched off or rescoped while macOS answered: the cleared key stays cleared.
+        guard generation == self.generation, self.enabled,
+            AlertScope.fingerprint(installation: installation) == self.armedInstallation
+        else { return }
+        record.announced = true
+        self.saveCompatibilityRecord(record)
+    }
+
+    private func saveCompatibilityRecord(_ record: CompatibilityRecord) {
+        guard let data = try? JSONEncoder().encode(record) else { return }
+        self.defaults.set(data, forKey: Self.compatibilityAlertKey)
     }
 
     /// Adds an owed entry to the outbox (a slot already there is a no-op). False when the full outbox

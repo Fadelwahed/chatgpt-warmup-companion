@@ -138,6 +138,9 @@ public struct EngineStatus: Decodable, Sendable, Equatable {
     public let scheduleRevision: Int
     public let job: String
     public let compatibility: String
+    /// Engine 1.2: wall-clock milliseconds when a tick first found compatibility blocked. Null until then;
+    /// cleared by the next scheduled tick that finds it ready, so it may be stale while paused.
+    public let compatibilityBlockedSince: Int?
     public let lastTick: Int?
     public let lastTickZone: String?
     public let timeZoneMode: String

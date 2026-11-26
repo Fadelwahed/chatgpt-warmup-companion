@@ -8,7 +8,7 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd -P)
 OUT=${1:-"$ROOT/.build/stage"}
 case "$OUT" in /*) ;; *) echo "output must be absolute" >&2; exit 2 ;; esac
 BUNDLE_ID=local.warmup.menu
-VERSION=0.6.9
+VERSION=0.6.10
 APP="$OUT/Warm-up.app"
 cd "$ROOT"
 swift build -c release --product WarmupMenu

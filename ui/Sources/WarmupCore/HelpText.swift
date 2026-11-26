@@ -45,7 +45,9 @@ public enum HelpText {
                 heading: "Pausing",
                 body: "Pause Scheduling stops automatic warm-ups until you resume; Warm Up Now still sends one when "
                     + "you ask. With alerts on, Warm-up reminds you once a day while scheduling stays paused for "
-                    + "more than a day."
+                    + "more than a day. If codex-router changes and Warm-up needs a review before it can send, "
+                    + "automatic warm-ups are skipped until then; with alerts on, Warm-up tells you right away, once "
+                    + "each time it happens."
             ),
             (
                 heading: "What the app stores",
@@ -53,7 +55,8 @@ public enum HelpText {
                     + "Finder) holds the engine connection, a sleep journal (14 days), usage seen at each warm-up "
                     + "(60 days), account names you set, sends you marked as reviewed, and alerts waiting to be "
                     + "shown. The app's preferences hold your settings, which alerts were already shown, and when "
-                    + "scheduling was first seen paused. Copied summaries and WarmupMenu --status and --json "
+                    + "scheduling was first seen paused or Router's compatibility found blocked. Copied summaries "
+                    + "and WarmupMenu --status and --json "
                     + "never include account names, IDs or email addresses; the engine's own commands can. The "
                     + "app makes no network requests of its own."
             ),

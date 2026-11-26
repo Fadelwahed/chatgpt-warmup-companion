@@ -165,10 +165,14 @@ public struct WeekDay: Sendable, Equatable, Identifiable {
     public var id: String { self.date }
 
     /// "Monday 16 November: 08:00 confirmed, 13:00 missed."
-    public var spoken: String {
+    public var spoken: String { self.spoken(runs: .none) }
+
+    /// The same sentence with each time as the week strip shows it, so VoiceOver reads one time per
+    /// warm-up when a time was moved for a day.
+    public func spoken(runs: RunTimes) -> String {
         let date = FriendlyTime.parse(self.date).map { FriendlyTime.formatter("d MMMM").string(from: $0) } ?? self.date
         let day = "\(Wording.weekdayName(self.weekday)) \(date)"
-        var parts = self.slots.map { "\($0.time) \($0.mark.words)" }
+        var parts = self.slots.map { "\($0.shown(runs: runs)) \($0.mark.words)" }
         if self.manualRuns > 0 {
             parts.append("\(self.manualRuns) manual account \(self.manualRuns == 1 ? "result" : "results")")
         }

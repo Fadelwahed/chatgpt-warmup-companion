@@ -615,7 +615,7 @@ private struct WeekStrip: View {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .strokeBorder(isToday ? Color.accentColor.opacity(0.5) : .clear))
                 .accessibilityElement(children: .contain)
-                .accessibilityLabel((isToday ? "Today, " : "") + day.spoken)
+                .accessibilityLabel((isToday ? "Today, " : "") + day.spoken(runs: self.runs))
             }
         }
         .padding(.vertical, 4)
@@ -1604,6 +1604,8 @@ struct AccountsPane: View {
         let rows = self.model.accounts?.rows ?? []
         let turnedOff = rows.filter { AccountText.readiness($0) == "Turned off" }
         let others = rows.filter { AccountText.readiness($0) != "Turned off" }
+        // With every account turned off there is nothing to tuck away: list them instead of a blank table.
+        let visible = AccountText.listed(others: others, turnedOff: turnedOff, showTurnedOff: self.showTurnedOff)
         VStack(alignment: .leading) {
             if let issue = self.model.accountsIssue { Label(issue, systemImage: "exclamationmark.triangle").padding(.horizontal) }
             if self.model.accountsStale, let good = self.model.accountsReadAt {
@@ -1613,7 +1615,7 @@ struct AccountsPane: View {
                 Label("Actions unavailable: \(reason)", systemImage: "info.circle").font(.callout).padding(.horizontal)
             }
             let zone = self.model.status?.schedule.zone ?? TimeZone.current.identifier
-            Table(others + (self.showTurnedOff ? turnedOff : []), selection: self.$selection) {
+            Table(visible, selection: self.$selection) {
                 TableColumn("Account") { row in AccountNameCell(model: self.model, row: row) }
                     // Room for "Ready · Account 2"; longer states truncate first (0.6.4). The ideal widths
                     // add up to fit the default window with the actions column whole (0.6.5).
@@ -1651,7 +1653,7 @@ struct AccountsPane: View {
             }
             VStack(alignment: .leading, spacing: 4) {
                 // Each button sets the value its title names.
-                if !turnedOff.isEmpty {
+                if !turnedOff.isEmpty, !others.isEmpty {
                     if self.showTurnedOff {
                         Button("Hide turned-off accounts") { self.showTurnedOff = false }.buttonStyle(.link)
                     } else {
@@ -1659,7 +1661,8 @@ struct AccountsPane: View {
                             .buttonStyle(.link)
                     }
                 }
-                if let id = self.selection, let row = self.model.accounts?.rows.first(where: { $0.id == id }) {
+                // A selected row that was just hidden is not described.
+                if let id = self.selection, let row = visible.first(where: { $0.id == id }) {
                     let usage = self.model.usageLine(enrollmentId: row.enrollmentId) ?? self.model.usageMissingLabel
                     Label("Usage at last send: \(usage)", systemImage: "gauge.with.dots.needle.50percent").font(.callout)
                     if let cap = row.enrollmentId.flatMap({ self.model.status?.caps?[$0] }) {

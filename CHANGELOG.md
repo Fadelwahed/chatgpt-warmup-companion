@@ -12,6 +12,7 @@ Notable changes to Warm-up: the engine (`warmup.mjs` and its modules) and the me
 
 - **Advice that matches what happened.** A missed time's advice, Schedule's wake line and Help say a booked wake needs the lid open; with the lid closed on battery it may last only seconds. The week's cause line says "at least N while the Mac was recorded asleep". Help says where to look when the menu-bar icon is missing.
 - **`--status` agrees with the window.** Sends marked reviewed in the app no longer count in `--status` and `--json` (verdict, "Sends without a result" line, `unresolvedSends`, exit code); `unresolvedSends` now means unreviewed sends. The CLI also reads the last eight days of `history`, so Today's marks and the headline match the window; if that read fails it falls back to status alone.
+- **Accounts and VoiceOver.** With every account turned off the table lists them instead of staying blank, and the lines under the table no longer describe a row that was just hidden. VoiceOver reads a week day with the same times its cells show when a time was moved for a day.
 
 ### App 0.7.1
 

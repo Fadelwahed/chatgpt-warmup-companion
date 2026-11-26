@@ -397,6 +397,29 @@ import Testing
         #expect(slot.shown(runs: .none) == "13:00")
     }
 
+    @Test func spokenDayReadsTheMovedMinuteOnce() {
+        let day = WeekDay(
+            date: "2026-11-24", weekday: 3,
+            slots: [
+                WeekDay.Slot(date: "2026-11-24", time: "08:00", mark: .confirmed),
+                WeekDay.Slot(date: "2026-11-24", time: "13:00", mark: .missed),
+            ], manualRuns: 0)
+        let moved = RunTimes(byLabel: ["2026-11-24T13:00": "13:10"])
+        let spoken = day.spoken(runs: moved)
+        #expect(spoken.hasSuffix(": 08:00 confirmed, 13:10 missed."))
+        #expect(!spoken.contains("13:00"))
+        #expect(day.spoken(runs: .none) == day.spoken)
+        #expect(day.spoken.hasSuffix(": 08:00 confirmed, 13:00 missed."))
+    }
+
+    @Test func accountsTableIsNeverBlank() {
+        #expect(AccountText.listed(others: ["a"], turnedOff: ["b"], showTurnedOff: false) == ["a"])
+        #expect(AccountText.listed(others: ["a"], turnedOff: ["b"], showTurnedOff: true) == ["a", "b"])
+        // Every account turned off: listed without asking.
+        #expect(AccountText.listed(others: [String](), turnedOff: ["b", "c"], showTurnedOff: false) == ["b", "c"])
+        #expect(AccountText.listed(others: [String](), turnedOff: [], showTurnedOff: false).isEmpty)
+    }
+
     @Test func manualResultsInWords() {
         func day(_ manual: Int) -> WeekDay {
             WeekDay(date: "2026-11-24", weekday: 2, slots: [], manualRuns: manual)

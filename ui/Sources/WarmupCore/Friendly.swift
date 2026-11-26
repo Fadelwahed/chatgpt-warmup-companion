@@ -262,6 +262,12 @@ public enum AccountText {
     public static let blockedText = "Blocked"
     public static let coolingDown = "Cooling down"
 
+    /// The rows the Accounts table lists: turned-off accounts last and only when asked for, except
+    /// that with every account turned off they are listed anyway, so the table is never blank.
+    public static func listed<Row>(others: [Row], turnedOff: [Row], showTurnedOff: Bool) -> [Row] {
+        others + (showTurnedOff || others.isEmpty ? turnedOff : [])
+    }
+
     /// The row's state. With the account's `state` from status, "Ready" becomes the block reason in
     /// plain words or "Cooling down" (app 0.7.0: one rule for the table and the CLI). Without it, the
     /// row alone decides, as before.

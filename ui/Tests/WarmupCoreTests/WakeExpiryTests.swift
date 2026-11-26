@@ -54,6 +54,16 @@ import Testing
         #expect(other?.announced == false)
     }
 
+    @Test func dueTheDayBeforeAcrossAYearBoundary() throws {
+        let newYear = Self.plan("2027-01-01")
+        let record = try #require(Self.record(newYear))
+        #expect(WakeExpiry.due(record, plan: newYear, scheduleEnabled: true, today: "2026-12-31"))
+        #expect(WakeExpiry.due(record, plan: newYear, scheduleEnabled: true, today: "2027-01-01"))
+        #expect(!WakeExpiry.due(record, plan: newYear, scheduleEnabled: true, today: "2026-12-30"))
+        let text = WakeExpiry.content(lastBookedDay: "2027-01-01", today: "2026-12-31")
+        #expect(text.title == "Wake bookings end tomorrow")
+    }
+
     @Test func notDueWithARepeatingWakePausedUnknownOrNoBookings() {
         let repeating = Self.plan("2026-12-02", repeating: true)
         #expect(!Self.due(Self.record(repeating), repeating))

@@ -252,7 +252,32 @@ public enum ClockTime {
 
 /// One status phrase per account row, so three code columns become one answer: can it warm up?
 public enum AccountText {
-    public static func readiness(_ row: AccountRow) -> String {
+    /// Said for a block reason that is not a known code, so no engine text reaches the screen or the CLI.
+    public static let blockedText = "Blocked"
+    public static let coolingDown = "Cooling down"
+
+    /// The row's state. With the account's `state` from status, "Ready" becomes the block reason in
+    /// plain words or "Cooling down" (app 0.7.0: one rule for the table and the CLI). Without it, the
+    /// row alone decides, as before.
+    public static func readiness(_ row: AccountRow, state: AccountState? = nil, now: Int = 0) -> String {
+        let base = self.rowReadiness(row)
+        guard base == "Ready", let state else { return base }
+        return self.hold(state, now: now) ?? base
+    }
+
+    /// The block reason in plain words ("Blocked" when the reason is not a known code), "Cooling down"
+    /// while the cooldown is ahead, or nil when neither holds the account.
+    public static func hold(_ state: AccountState, now: Int) -> String? {
+        if let block = state.block {
+            let words = Wording.reason(block)
+            guard words != Wording.code(block) else { return self.blockedText }
+            return words.prefix(1).uppercased() + words.dropFirst()
+        }
+        if let until = state.cooldownUntil, until > now { return self.coolingDown }
+        return nil
+    }
+
+    static func rowReadiness(_ row: AccountRow) -> String {
         switch row.enrollmentState {
         case "not_enrolled": return row.eligible ? "Not added yet" : self.router(row.registryReason)
         case "disabled": return "Turned off"
@@ -264,19 +289,33 @@ public enum AccountText {
     }
 
     /// The state's symbol: a check only for Ready, a minus for Turned off, a plus for Not added yet,
-    /// and a warning for anything that needs the operator.
-    public static func symbol(_ row: AccountRow) -> String {
-        switch self.readiness(row) {
+    /// an hourglass for Cooling down, and a warning for anything that needs the operator.
+    public static func symbol(_ row: AccountRow, state: AccountState? = nil, now: Int = 0) -> String {
+        switch self.readiness(row, state: state, now: now) {
         case "Ready": "checkmark.circle"
         case "Turned off": "minus.circle"
         case "Not added yet": "plus.circle"
+        case self.coolingDown: "hourglass"
         default: "exclamationmark.triangle"
         }
     }
 
-    /// True when the phrase needs the operator.
-    public static func needsLook(_ row: AccountRow) -> Bool {
-        !["Ready", "Not added yet", "Turned off"].contains(self.readiness(row))
+    /// True when the phrase needs the operator (a block does; a cooldown does not).
+    public static func needsLook(_ row: AccountRow, state: AccountState? = nil, now: Int = 0) -> Bool {
+        let fine = ["Ready", "Not added yet", "Turned off", self.coolingDown]
+        return !fine.contains(self.readiness(row, state: state, now: now))
+    }
+
+    /// The state line under the account's name: "Ready · last seen Tue" once the usage reading is more
+    /// than 24 hours old ("Ready · last seen 18 Nov" past 6 days). Only an exact "Ready" gets it, and
+    /// never a nicknamed row, whose line already carries "· Account N" (its usage cell shows the time).
+    public static func stateLine(
+        readiness: String, observedAt: Int?, nicknamed: Bool, now: Int, zone: String
+    ) -> String {
+        guard readiness == "Ready", !nicknamed, let observedAt,
+            let seen = UsageText.lastSeen(observedAt: observedAt, now: now, zone: zone)
+        else { return readiness }
+        return "\(readiness) · \(seen)"
     }
 
     static func router(_ reason: String) -> String {
@@ -343,8 +382,9 @@ public enum BatchNote {
     }
 }
 
-/// The one-line count of possible sends without a recorded result, for Needs attention and the
-/// menu. A list the engine cut says "or more": "50 or more possible sends have no recorded result."
+/// The one-line count of sends without a result, for Needs attention and the menu (app 0.7.0: one name,
+/// "sends without a result"). A list the engine cut says "or more": "50 or more sends have no recorded
+/// result."
 public enum UnresolvedText {
     public static func line(_ status: EngineStatus) -> String {
         Self.line(count: status.unresolved.count, truncated: status.unresolvedTruncated == true)
@@ -353,11 +393,16 @@ public enum UnresolvedText {
     /// The same line for a filtered count (Needs attention counts only rows not marked as reviewed).
     public static func line(count: Int, truncated: Bool) -> String {
         if truncated {
-            return "\(count) or more possible sends have no recorded result. They are never resent."
+            return "\(count) or more sends have no recorded result. They are never resent."
         }
         return count == 1
-            ? "1 possible send has no recorded result. It is never resent."
-            : "\(count) possible sends have no recorded result. They are never resent."
+            ? "1 send has no recorded result. It is never resent."
+            : "\(count) sends have no recorded result. They are never resent."
+    }
+
+    /// "3 reviewed sends without a result", the quiet line's words before "· Show".
+    public static func reviewed(count: Int) -> String {
+        "\(count) reviewed send\(count == 1 ? "" : "s") without a result"
     }
 }
 

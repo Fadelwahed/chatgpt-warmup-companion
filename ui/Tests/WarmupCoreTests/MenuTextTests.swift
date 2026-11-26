@@ -114,8 +114,8 @@ import Testing
 
     @Test func unreviewedLine() {
         #expect(MenuText.unreviewed(count: 0) == nil)
-        #expect(MenuText.unreviewed(count: 1) == "1 new possible send with no result")
-        #expect(MenuText.unreviewed(count: 2) == "2 new possible sends with no result")
+        #expect(MenuText.unreviewed(count: 1) == "1 new send without a result")
+        #expect(MenuText.unreviewed(count: 2) == "2 new sends without a result")
     }
 
     @Test func accountLinesStopAtFour() {
@@ -204,8 +204,8 @@ import Testing
 
         #expect(
             UnresolvedText.line(count: 3, truncated: false)
-                == "3 possible sends have no recorded result. They are never resent.")
-        #expect(UnresolvedText.line(count: 1, truncated: false).hasPrefix("1 possible send has"))
+                == "3 sends have no recorded result. They are never resent.")
+        #expect(UnresolvedText.line(count: 1, truncated: false).hasPrefix("1 send has"))
     }
 
     /// 060-FIX3 item 5: a kept projection speaks for today only while it matches the status.
@@ -275,5 +275,65 @@ import Testing
         #expect(MenuText.todayTarget(marks: done) == "2026-11-13T13:00")
         #expect(MenuText.todayTarget(marks: []) == nil)
         #expect(MenuText.todayTarget(marks: [TodayMark(time: "08:00", kind: .upcoming)]) == nil)
+    }
+}
+
+/// App 0.7.0: the Accounts header names the oldest reading, and one name for sends without a result.
+@Suite struct AccountsHeaderAndSendWords {
+    static let eight = 1_794_463_200_000
+    static let hour = 3_600_000
+    static let day = 86_400_000
+
+    static func account(_ id: String, seenAgo age: Int?) -> AccountState {
+        AccountState(
+            enrollmentId: id, block: nil, cooldownUntil: nil,
+            usage: age.map { AccountUsage(primary: nil, secondary: nil, observedAt: Self.eight - $0) })
+    }
+
+    @Test func headerUsesTheOldestReading() {
+        func title(_ accounts: [AccountState], off: Set<String> = []) -> String {
+            MenuText.accountsTitle(accounts: accounts, turnedOff: off, now: Self.eight, zone: "Asia/Gaza")
+        }
+        let fresh = [Self.account("a", seenAgo: Self.hour), Self.account("b", seenAgo: 20 * Self.hour)]
+        #expect(title(fresh) == "Accounts · seen at the last warm-up")
+        let old = [Self.account("a", seenAgo: Self.hour), Self.account("b", seenAgo: 30 * Self.hour)]
+        #expect(title(old) == "Accounts · last seen Wed 02:00")
+        let older = old + [Self.account("c", seenAgo: 8 * Self.day)]
+        #expect(title(older) == "Accounts · last seen 4 Nov 08:00")
+        // A turned-off account and one without a reading do not count.
+        #expect(title(older, off: ["c"]) == "Accounts · last seen Wed 02:00")
+        #expect(title([Self.account("a", seenAgo: nil)]) == "Accounts · seen at the last warm-up")
+        #expect(title([]) == "Accounts · seen at the last warm-up")
+    }
+
+    @Test func oneNameForSendsWithoutAResult() {
+        let window = [
+            UnresolvedText.line(count: 1, truncated: false), UnresolvedText.line(count: 2, truncated: false),
+            UnresolvedText.line(count: 50, truncated: true), UnresolvedText.reviewed(count: 1),
+            UnresolvedText.reviewed(count: 3),
+        ]
+        #expect(window[0] == "1 send has no recorded result. It is never resent.")
+        #expect(window[1] == "2 sends have no recorded result. They are never resent.")
+        #expect(window[2] == "50 or more sends have no recorded result. They are never resent.")
+        #expect(window[3] == "1 reviewed send without a result")
+        #expect(window[4] == "3 reviewed sends without a result")
+        let menu = [MenuText.unreviewed(count: 1), MenuText.unreviewed(count: 2)].compactMap { $0 }
+        #expect(menu == ["1 new send without a result", "2 new sends without a result"])
+        let verdicts = [
+            StatusCLI.unresolvedVerdict(1), StatusCLI.unresolvedVerdict(2),
+            StatusCLI.unresolvedVerdict(2, truncated: true),
+        ]
+        let cli =
+            verdicts.compactMap { $0 } + [StatusCLI.unresolvedLine(2), StatusCLI.unresolvedLine(2, truncated: true)]
+        #expect(
+            cli == [
+                "Needs attention: 1 send without a result", "Needs attention: 2 sends without a result",
+                "Needs attention: 2 or more sends without a result", "Sends without a result: 2",
+                "Sends without a result: 2 or more",
+            ])
+        for text in window + menu + cli {
+            #expect(!text.lowercased().contains("possible"))
+            #expect(!text.lowercased().contains("unresolved"))
+        }
     }
 }

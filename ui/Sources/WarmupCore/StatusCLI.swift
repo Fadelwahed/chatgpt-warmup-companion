@@ -21,7 +21,7 @@ public enum StatusCLI {
     /// Shown in place of a time or date the engine sent in an unexpected shape.
     public static let unknownText = "unknown"
     /// Shown in place of a block reason that is not a plain code.
-    public static let blockedText = "Blocked"
+    public static let blockedText = AccountText.blockedText
     public static let exitGood: Int32 = 0
     public static let exitAttention: Int32 = 1
     public static let exitUnreadable: Int32 = 2
@@ -209,7 +209,7 @@ public enum StatusCLI {
         let accounts = status.accounts.enumerated().map { index, account in
             Report.Account(
                 label: "Account \(index + 1)", state: Self.accountState(account, now: nowMs),
-                usage: UsageText.cell(usage: account.usage, now: nowMs, zone: zone).main)
+                usage: UsageText.cell(usage: account.usage, now: nowMs, zone: zone).line)
         }
         let checks = Self.health(status, observedAt: observedAt, now: now).map {
             Report.Check(name: $0.title, ok: $0.level != .warning, text: $0.value)
@@ -272,15 +272,10 @@ public enum StatusCLI {
     }
 
     /// "Ready", "Cooling down", or the engine's block reason in plain words ("Blocked" when the reason
-    /// is not a known code, so no engine text, email, path or ID reaches the output).
+    /// is not a known code, so no engine text, email, path or ID reaches the output). The same rule as
+    /// the Accounts table (`AccountText.hold`).
     static func accountState(_ account: AccountState, now: Int) -> String {
-        if let block = account.block {
-            let words = Wording.reason(block)
-            guard words != Wording.code(block) else { return Self.blockedText }
-            return words.prefix(1).uppercased() + words.dropFirst()
-        }
-        if let until = account.cooldownUntil, until > now { return "Cooling down" }
-        return "Ready"
+        AccountText.hold(account, now: now) ?? "Ready"
     }
 
     // MARK: - Engine strings (060-FIX1 item 2)
@@ -405,18 +400,18 @@ public enum StatusCLI {
         return Self.unknownText
     }
 
-    /// "Needs attention: 2 unresolved sends"; "2 or more" when the engine cut the list (060-FIX8 item
-    /// 5); nil for none.
+    /// "Needs attention: 2 sends without a result"; "2 or more" when the engine cut the list (060-FIX8
+    /// item 5); nil for none.
     static func unresolvedVerdict(_ count: Int, truncated: Bool = false) -> String? {
         guard count > 0 else { return nil }
-        if truncated { return "Needs attention: \(count) or more unresolved sends" }
-        return "Needs attention: \(count) unresolved send\(count == 1 ? "" : "s")"
+        if truncated { return "Needs attention: \(count) or more sends without a result" }
+        return "Needs attention: \(count) send\(count == 1 ? "" : "s") without a result"
     }
 
-    /// "Unresolved sends: 2", the text line printed whenever there are any; "2 or more" when the engine
-    /// cut the list (060-FIX7 item 5).
+    /// "Sends without a result: 2", the text line printed whenever there are any; "2 or more" when the
+    /// engine cut the list (060-FIX7 item 5).
     static func unresolvedLine(_ count: Int, truncated: Bool = false) -> String {
-        "Unresolved sends: \(count)\(truncated ? " or more" : "")"
+        "Sends without a result: \(count)\(truncated ? " or more" : "")"
     }
 
     /// GlanceBuilder headlines that quote no engine value.

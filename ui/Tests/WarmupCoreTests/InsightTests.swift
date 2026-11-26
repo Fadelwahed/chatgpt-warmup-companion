@@ -384,3 +384,26 @@ import Testing
         #expect(row?.level == .info)
     }
 }
+
+/// App 0.7.0: the week strip shows the minute a slot ran, and counts manual results in words.
+@Suite struct WeekCells {
+    @Test func cellShowsTheMovedMinute() {
+        let slot = WeekDay.Slot(date: "2026-11-24", time: "13:00", mark: .confirmed)
+        let moved = RunTimes(byLabel: ["2026-11-24T13:00": "13:10"])
+        #expect(slot.shown(runs: moved) == "13:10")
+        #expect(slot.id == "2026-11-24T13:00")
+        // Moved for one day only: the next day's 13:00 keeps its time.
+        #expect(WeekDay.Slot(date: "2026-11-25", time: "13:00", mark: .missed).shown(runs: moved) == "13:00")
+        #expect(slot.shown(runs: .none) == "13:00")
+    }
+
+    @Test func manualResultsInWords() {
+        func day(_ manual: Int) -> WeekDay {
+            WeekDay(date: "2026-11-24", weekday: 2, slots: [], manualRuns: manual)
+        }
+        #expect(day(2).manualText == "+2 manual results")
+        #expect(day(1).manualText == "+1 manual result")
+        #expect(day(0).manualText == nil)
+        #expect(WeekDay.manualLegend == "+N manual results: account results from manual warm-ups that day.")
+    }
+}

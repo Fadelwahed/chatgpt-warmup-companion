@@ -200,7 +200,8 @@ import Testing
             StatusCLI.Snapshot(status: both, observedAt: Self.observedNow, projection: try self.projection()),
             json: false, now: Self.now, acknowledgedSlot: "2026-11-12T01:00")
         #expect(attention.code == 1)
-        #expect(String(decoding: attention.stdout, as: UTF8.self).hasPrefix("Needs attention: 1 unresolved send\n"))
+        #expect(
+            String(decoding: attention.stdout, as: UTF8.self).hasPrefix("Needs attention: 1 send without a result\n"))
     }
 
     /// 060-FIX1 item 7: without a ready schedule the CLI prints nothing and exits 2.
@@ -562,16 +563,16 @@ extension StatusCommandLinePairing {
         let text = StatusCLI.render(snapshot, json: false, now: StatusCommandLine.now)
         #expect(text.code == 1)
         let output = String(decoding: text.stdout, as: UTF8.self)
-        #expect(output.hasPrefix("Needs attention: 2 unresolved sends\n"))
+        #expect(output.hasPrefix("Needs attention: 2 sends without a result\n"))
         #expect(!output.contains("All good"))
         #expect(!output.contains("enr_"))
         let json = StatusCLI.render(snapshot, json: true, now: StatusCommandLine.now)
         #expect(json.code == 1)
         let report = try JSONDecoder().decode(StatusCLI.Report.self, from: json.stdout)
         #expect(report.unresolvedSends == 2)
-        #expect(report.verdict == "Needs attention: 2 unresolved sends")
+        #expect(report.verdict == "Needs attention: 2 sends without a result")
         #expect(!String(decoding: json.stdout, as: UTF8.self).contains("enr_"))
-        #expect(StatusCLI.unresolvedVerdict(1) == "Needs attention: 1 unresolved send")
+        #expect(StatusCLI.unresolvedVerdict(1) == "Needs attention: 1 send without a result")
         #expect(StatusCLI.unresolvedVerdict(0) == nil)
         let glance = GlanceBuilder.make(status: status, today: "2026-11-12")
         let fine = [HealthRow(title: "Background job", value: "running", level: .ok)]
@@ -666,7 +667,7 @@ extension StatusCommandLinePairing {
         let text = StatusCLI.text(status: paused, glance: glance, projection: nil, now: StatusCommandLine.now)
         let lines = text.split(separator: "\n").map(String.init)
         #expect(lines.first == "Paused")
-        #expect(lines.contains("Unresolved sends: 2"))
+        #expect(lines.contains("Sends without a result: 2"))
         #expect(!text.contains("enr_"))
         let clean = try #require(
             ReplyValidator.payload(
@@ -674,7 +675,7 @@ extension StatusCommandLinePairing {
         let quiet = StatusCLI.text(
             status: clean, glance: GlanceBuilder.make(status: clean, today: "2026-11-12"), projection: nil,
             now: StatusCommandLine.now)
-        #expect(!quiet.contains("Unresolved sends"))
+        #expect(!quiet.contains("Sends without a result"))
     }
 }
 
@@ -742,7 +743,7 @@ extension StatusCommandLinePairing {
         #expect(cut.unresolvedTruncated == true)
         let glance = GlanceBuilder.make(status: cut, today: "2026-11-12")
         let text = StatusCLI.text(status: cut, glance: glance, projection: nil, now: StatusCommandLine.now)
-        #expect(text.split(separator: "\n").map(String.init).contains("Unresolved sends: 2 or more"))
+        #expect(text.split(separator: "\n").map(String.init).contains("Sends without a result: 2 or more"))
         #expect(!text.contains("enr_"))
         let data = StatusCLI.json(status: cut, glance: glance, projection: nil, now: StatusCommandLine.now)
         let object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -755,7 +756,7 @@ extension StatusCommandLinePairing {
         let exact = StatusCLI.text(
             status: whole, glance: GlanceBuilder.make(status: whole, today: "2026-11-12"), projection: nil,
             now: StatusCommandLine.now)
-        #expect(exact.split(separator: "\n").map(String.init).contains("Unresolved sends: 2"))
+        #expect(exact.split(separator: "\n").map(String.init).contains("Sends without a result: 2"))
         let plain = StatusCLI.json(
             status: whole, glance: GlanceBuilder.make(status: whole, today: "2026-11-12"), projection: nil,
             now: StatusCommandLine.now)
@@ -818,12 +819,71 @@ extension StatusCommandLinePairing {
         let text = StatusCLI.render(snapshot, json: false, now: StatusCommandLine.now)
         #expect(text.code == 1)
         let output = String(decoding: text.stdout, as: UTF8.self)
-        #expect(output.hasPrefix("Needs attention: 2 or more unresolved sends\n"))
+        #expect(output.hasPrefix("Needs attention: 2 or more sends without a result\n"))
         #expect(!output.contains("enr_"))
         let json = StatusCLI.render(snapshot, json: true, now: StatusCommandLine.now)
         let report = try JSONDecoder().decode(StatusCLI.Report.self, from: json.stdout)
-        #expect(report.verdict == "Needs attention: 2 or more unresolved sends")
-        #expect(StatusCLI.unresolvedVerdict(1, truncated: true) == "Needs attention: 1 or more unresolved sends")
-        #expect(StatusCLI.unresolvedVerdict(2) == "Needs attention: 2 unresolved sends")
+        #expect(report.verdict == "Needs attention: 2 or more sends without a result")
+        #expect(StatusCLI.unresolvedVerdict(1, truncated: true) == "Needs attention: 1 or more sends without a result")
+        #expect(StatusCLI.unresolvedVerdict(2) == "Needs attention: 2 sends without a result")
+    }
+}
+
+/// App 0.7.0: the Accounts table and the CLI share one readiness rule.
+@Suite struct OneReadinessRule {
+    static let now = 1_794_463_200_000
+
+    static func row(_ state: String, reason: String = "eligible", pilot: Bool = true) -> AccountRow {
+        AccountRow(
+            routerAccountId: "router_a", enrollmentId: "enr_a", registryReason: reason, enrollmentState: state,
+            eligible: true, enabled: state == "enabled", pilot: pilot, lastOutcome: nil, lastReason: nil, lastAt: nil)
+    }
+
+    static func state(block: String? = nil, cooldownUntil: Int? = nil) -> AccountState {
+        AccountState(enrollmentId: "enr_a", block: block, cooldownUntil: cooldownUntil, usage: nil)
+    }
+
+    @Test func blockAndCooldownReplaceReady() {
+        let ready = Self.row("enabled")
+        let blocked = Self.state(block: "daily_cap_reached")
+        #expect(AccountText.readiness(ready, state: blocked, now: Self.now) == "Daily limit reached")
+        #expect(AccountText.symbol(ready, state: blocked, now: Self.now) == "exclamationmark.triangle")
+        #expect(AccountText.needsLook(ready, state: blocked, now: Self.now))
+        let unknown = Self.state(block: "some_new_code")
+        #expect(AccountText.readiness(ready, state: unknown, now: Self.now) == "Blocked")
+        let cooling = Self.state(cooldownUntil: Self.now + 60_000)
+        #expect(AccountText.readiness(ready, state: cooling, now: Self.now) == "Cooling down")
+        #expect(AccountText.symbol(ready, state: cooling, now: Self.now) == "hourglass")
+        #expect(!AccountText.needsLook(ready, state: cooling, now: Self.now))
+        let cooled = Self.state(cooldownUntil: Self.now - 60_000)
+        #expect(AccountText.readiness(ready, state: cooled, now: Self.now) == "Ready")
+        #expect(AccountText.readiness(ready, state: Self.state(), now: Self.now) == "Ready")
+        #expect(AccountText.symbol(ready, state: Self.state(), now: Self.now) == "checkmark.circle")
+        #expect(AccountText.readiness(ready) == "Ready")
+    }
+
+    @Test func otherStatesAreUnchangedByStatus() {
+        let cooling = Self.state(block: "cooldown", cooldownUntil: Self.now + 60_000)
+        #expect(AccountText.readiness(Self.row("not_enrolled"), state: cooling, now: Self.now) == "Not added yet")
+        #expect(AccountText.readiness(Self.row("disabled"), state: cooling, now: Self.now) == "Turned off")
+        #expect(
+            AccountText.readiness(Self.row("enrolled_unregistered"), state: cooling, now: Self.now)
+                == "Missing from Router")
+        #expect(
+            AccountText.readiness(Self.row("enabled", pilot: false), state: cooling, now: Self.now)
+                == "Needs a first manual warm-up")
+    }
+
+    @Test func cliUsesTheSameRule() {
+        for state in [
+            Self.state(), Self.state(block: "daily_cap_reached"), Self.state(block: "some_new_code"),
+            Self.state(cooldownUntil: Self.now + 1), Self.state(cooldownUntil: Self.now - 1),
+        ] {
+            #expect(
+                StatusCLI.accountState(state, now: Self.now)
+                    == AccountText.readiness(Self.row("enabled"), state: state, now: Self.now))
+        }
+        #expect(StatusCLI.accountState(Self.state(cooldownUntil: Self.now + 1), now: Self.now) == "Cooling down")
+        #expect(StatusCLI.accountState(Self.state(block: "some_new_code"), now: Self.now) == StatusCLI.blockedText)
     }
 }

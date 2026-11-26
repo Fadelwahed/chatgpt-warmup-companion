@@ -43,6 +43,7 @@ extension WeekDay.Mark {
 struct StatusPane: View {
     @EnvironmentObject private var model: AppModel
     let openSchedule: () -> Void
+    let openSettings: () -> Void
 
     var body: some View {
         Form {
@@ -72,12 +73,14 @@ struct StatusPane: View {
             if self.model.status != nil { TodaySection(openSchedule: self.openSchedule) }
             if let status = self.model.status, self.attentionShown {
                 UnresolvedSection(status: status, openSchedule: self.openSchedule)
-            } else if self.model.status != nil, !self.model.reviewedUnresolved.isEmpty {
-                Section { ReviewedLine(count: self.model.reviewedUnresolved.count) }
             }
             if !self.model.week.isEmpty { LastSevenDaysSection(openSchedule: self.openSchedule) }
-            if let effect = self.model.effect { EffectSection(effect: effect) }
+            if let effect = self.model.effect { EffectSection(effect: effect, openSettings: self.openSettings) }
             if self.model.status != nil { HealthSection() }
+            // Reviewed sends leave one quiet line at the end of Overview (0.7.0).
+            if self.model.status != nil, !self.attentionShown, !self.model.reviewedUnresolved.isEmpty {
+                Section { ReviewedLine(count: self.model.reviewedUnresolved.count) }
+            }
         }
         .formStyle(.grouped)
     }
@@ -342,7 +345,9 @@ private struct LastSevenDaysSection: View {
                 }
             }
             if let stale = self.model.weekStaleLine { Text(stale).font(.callout) }
-            WeekStrip(days: self.model.week) { slot in
+            WeekStrip(
+                days: self.model.week, runs: RunTimes.make(status: self.model.status, projection: self.model.projection)
+            ) { slot in
                 self.openSchedule()
                 Task { await self.model.explain(slot: slot) }
             }
@@ -369,18 +374,18 @@ private struct LastSevenDaysSection: View {
     }
 }
 
-/// "3 reviewed possible sends · Show", in place of Needs attention when only reviewed rows exist.
+/// "3 reviewed sends without a result · Show", at the end of Overview when only reviewed rows exist.
 private struct ReviewedLine: View {
     @EnvironmentObject private var model: AppModel
     let count: Int
 
     var body: some View {
-        let noun = "reviewed possible send\(self.count == 1 ? "" : "s")"
+        let words = UnresolvedText.reviewed(count: self.count)
         HStack(spacing: 4) {
-            Text("\(self.count) \(noun) ·").foregroundStyle(.secondary)
+            Text("\(words) ·").foregroundStyle(.secondary)
             Button("Show") { self.model.showReviewed = true }
                 .buttonStyle(.link)
-                .accessibilityLabel("Show \(self.count) \(noun)")
+                .accessibilityLabel("Show \(words)")
         }
         .font(.callout)
     }
@@ -412,7 +417,7 @@ private struct UnresolvedSection: View {
                         .controlSize(.small)
                         .help("Hides these rows in Warm-up only. Nothing is sent to the engine.")
                         .accessibilityLabel(
-                            "Mark \(visible.count) possible send\(visible.count == 1 ? "" : "s") as reviewed")
+                            "Mark \(visible.count) send\(visible.count == 1 ? "" : "s") without a result as reviewed")
                 }
                 if groups.count <= 3 {
                     self.rows(groups)
@@ -457,11 +462,11 @@ private struct UnresolvedSection: View {
                 }
                 Button("Hide") { self.model.showReviewed = false }
                     .buttonStyle(.link)
-                    .accessibilityLabel("Hide reviewed possible sends")
+                    .accessibilityLabel("Hide reviewed sends without a result")
             } else {
                 Button("Show reviewed (\(reviewed.count))") { self.model.showReviewed = true }
                     .buttonStyle(.link)
-                    .accessibilityLabel("Show \(reviewed.count) reviewed possible sends")
+                    .accessibilityLabel("Show \(UnresolvedText.reviewed(count: reviewed.count))")
             }
         }
     }
@@ -472,6 +477,7 @@ private struct UnresolvedSection: View {
 private struct EffectSection: View {
     @EnvironmentObject private var model: AppModel
     let effect: EffectState
+    let openSettings: () -> Void
     @State private var details = false
 
     var body: some View {
@@ -488,7 +494,12 @@ private struct EffectSection: View {
             if let decision = self.effect.decision {
                 DecisionCard(decision: decision)
             } else if self.effect.countFromLabel == nil {
-                Text(EffectReport.noCountFrom).font(.callout)
+                HStack {
+                    Text(EffectReport.noCountFrom).font(.callout)
+                    Spacer()
+                    Button(EffectReport.setStartDate) { self.openSettings() }
+                        .accessibilityHint("Opens Settings to choose the day the decision period starts")
+                }
             }
             if summary.total > 0 || !self.effect.rows.isEmpty {
                 DisclosureGroup("Details", isExpanded: self.$details) {
@@ -559,6 +570,8 @@ private struct EffectRowView: View {
 /// Seven day columns, oldest first. Each mark opens that time's explanation.
 private struct WeekStrip: View {
     let days: [WeekDay]
+    /// The minute each slot ran or runs, as on Today; labels stay the keys for clicks.
+    let runs: RunTimes
     let open: (String) -> Void
 
     var body: some View {
@@ -573,23 +586,24 @@ private struct WeekStrip: View {
                         Image(systemName: "circle.dashed").foregroundStyle(.tertiary).accessibilityHidden(true)
                     }
                     ForEach(day.slots) { slot in
+                        let shown = slot.shown(runs: self.runs)
                         Button {
                             self.open("\(day.date)T\(slot.time)")
                         } label: {
                             VStack(spacing: 1) {
                                 Image(systemName: slot.mark.symbolName).foregroundStyle(slot.mark.tint)
-                                Text(slot.time).font(.caption.monospacedDigit())
+                                Text(shown).font(.caption.monospacedDigit())
                             }
                             .frame(minWidth: 28, minHeight: 28)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .help("\(slot.time) \(slot.mark.words). Show details.")
-                        .accessibilityLabel("\(slot.time) \(slot.mark.words)")
+                        .help("\(shown) \(slot.mark.words). Show details.")
+                        .accessibilityLabel("\(shown) \(slot.mark.words)")
                         .accessibilityHint("Shows what happened")
                     }
-                    if day.manualRuns > 0 {
-                        Text("+\(day.manualRuns) manual").font(.caption)
+                    if let manual = day.manualText {
+                        Text(manual).font(.caption)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -632,7 +646,7 @@ private struct WeekLegend: View {
 
     private var hint: String {
         let click = "Click a time to see what happened."
-        return self.days.contains { $0.manualRuns > 0 } ? "+N manual: manual warm-ups that day. \(click)" : click
+        return self.days.contains { $0.manualRuns > 0 } ? "\(WeekDay.manualLegend) \(click)" : click
     }
 }
 
@@ -743,28 +757,47 @@ private struct AlertsSection: View {
 }
 
 /// The "count from" day for "Did it help?" (F1), picked in the schedule's zone. Stored on this Mac
-/// only; nothing is sent to the engine.
+/// only; nothing is sent to the engine. While none is stored there is no picker: "Set Start Date…"
+/// reveals one, and nothing is stored until Start (0.7.0).
 private struct MeasurementSection: View {
     @EnvironmentObject private var model: AppModel
+    @State private var choosing = false
+    @State private var pending = Date()
 
     var body: some View {
         let zone = self.zone
         Section("Measurement") {
-            HStack {
-                DatePicker(
-                    "Count \"Did it help?\" from", selection: self.day(zone: zone), in: ...Date(),
-                    displayedComponents: .date
-                )
-                .environment(\.timeZone, zone)
-                Button("Clear") { self.model.setCountFrom(nil) }
-                    .disabled(self.model.effectCountFromDay == nil)
-                    .accessibilityLabel("Clear the count from date")
-            }
-            if self.model.effectCountFromDay == nil {
+            if self.model.effectCountFromDay != nil {
                 HStack {
-                    Text("Not set: counting the last \(EffectReport.periodDays) days.").font(.callout)
+                    DatePicker(
+                        "Count \"Did it help?\" from", selection: self.day(zone: zone), in: ...Date(),
+                        displayedComponents: .date
+                    )
+                    .environment(\.timeZone, zone)
+                    Button("Clear") { self.model.setCountFrom(nil) }
+                        .accessibilityLabel("Clear the count from date")
+                }
+            } else if self.choosing {
+                HStack {
+                    DatePicker(
+                        "Count \"Did it help?\" from", selection: self.$pending, in: ...Date(),
+                        displayedComponents: .date
+                    )
+                    .environment(\.timeZone, zone)
+                    Button("Cancel") { self.choosing = false }
+                    Button("Start") {
+                        self.model.setCountFrom(ClockTime.day(from: self.pending, zone: zone))
+                        self.choosing = false
+                    }
+                }
+            } else {
+                HStack {
+                    Text(EffectReport.notStarted).font(.callout)
                     Spacer()
-                    Button("Count From Today") { self.model.setCountFrom(ClockTime.day(from: Date(), zone: zone)) }
+                    Button(EffectReport.setStartDate) {
+                        self.pending = Date()
+                        self.choosing = true
+                    }
                 }
             }
             Text(EffectReport.stopRule).font(.callout)
@@ -775,7 +808,7 @@ private struct MeasurementSection: View {
         self.model.status.flatMap { TimeZone(identifier: $0.schedule.zone) } ?? .current
     }
 
-    /// Shows the stored day (today while none is set); a pick sends the picked day.
+    /// Shows the stored day; a pick sends the picked day.
     private func day(zone: TimeZone) -> Binding<Date> {
         Binding(
             get: {
@@ -1543,8 +1576,13 @@ struct AccountsPane: View {
     @EnvironmentObject private var model: AppModel
     @State private var selection: String?
     @State private var renaming: AccountRow?
+    /// Turned-off accounts are listed last and hidden until asked for, for this session only (0.7.0).
+    @State private var showTurnedOff = false
 
     var body: some View {
+        let rows = self.model.accounts?.rows ?? []
+        let turnedOff = rows.filter { AccountText.readiness($0) == "Turned off" }
+        let others = rows.filter { AccountText.readiness($0) != "Turned off" }
         VStack(alignment: .leading) {
             if let issue = self.model.accountsIssue { Label(issue, systemImage: "exclamationmark.triangle").padding(.horizontal) }
             if self.model.accountsStale, let good = self.model.accountsReadAt {
@@ -1554,7 +1592,7 @@ struct AccountsPane: View {
                 Label("Actions unavailable: \(reason)", systemImage: "info.circle").font(.callout).padding(.horizontal)
             }
             let zone = self.model.status?.schedule.zone ?? TimeZone.current.identifier
-            Table(self.model.accounts?.rows ?? [], selection: self.$selection) {
+            Table(others + (self.showTurnedOff ? turnedOff : []), selection: self.$selection) {
                 TableColumn("Account") { row in AccountNameCell(model: self.model, row: row) }
                     // Room for "Ready · Account 2"; longer states truncate first (0.6.4). The ideal widths
                     // add up to fit the default window with the actions column whole (0.6.5).
@@ -1591,6 +1629,15 @@ struct AccountsPane: View {
                 }
             }
             VStack(alignment: .leading, spacing: 4) {
+                // Each button sets the value its title names.
+                if !turnedOff.isEmpty {
+                    if self.showTurnedOff {
+                        Button("Hide turned-off accounts") { self.showTurnedOff = false }.buttonStyle(.link)
+                    } else {
+                        Button("Show turned-off accounts (\(turnedOff.count))") { self.showTurnedOff = true }
+                            .buttonStyle(.link)
+                    }
+                }
                 if let id = self.selection, let row = self.model.accounts?.rows.first(where: { $0.id == id }) {
                     let usage = self.model.usageLine(enrollmentId: row.enrollmentId) ?? self.model.usageMissingLabel
                     Label("Usage at last send: \(usage)", systemImage: "gauge.with.dots.needle.50percent").font(.callout)
@@ -1622,27 +1669,35 @@ struct AccountsPane: View {
 
 }
 
-/// "**Work** · Ready": the bold label, then the state in words with its symbol.
+/// "**Work** · Ready": the bold label, then the state in words with its symbol. The state follows the
+/// same rule as the CLI (a block or cooldown in status), and says "last seen Tue" for an old reading.
 private struct AccountNameCell: View {
     @ObservedObject var model: AppModel
     let row: AccountRow
 
     var body: some View {
         let label = self.model.accountLabel(self.row)
-        let look = AccountText.needsLook(self.row)
+        let status = self.model.status
+        let state = self.row.enrollmentId.flatMap { id in status?.accounts.first { $0.enrollmentId == id } }
+        let now = Int(Date().timeIntervalSince1970 * 1000)
+        let look = AccountText.needsLook(self.row, state: state, now: now)
+        let number = AccountNaming.numberBeside(
+            label: label, number: self.row.enrollmentId.flatMap { self.model.accountNumbers[$0] })
+        let words = AccountText.stateLine(
+            readiness: AccountText.readiness(self.row, state: state, now: now), observedAt: state?.usage?.observedAt,
+            nicknamed: number != nil, now: now, zone: status?.schedule.zone ?? TimeZone.current.identifier)
         // Two lines, so the state is never cut off at the default width (0.6.3).
         VStack(alignment: .leading, spacing: 2) {
             Text(label).fontWeight(.semibold).lineLimit(1).truncationMode(.middle).help(label)
             HStack(spacing: 4) {
                 // Orange on the symbol only; the words keep text contrast.
-                Label(AccountText.readiness(self.row), systemImage: AccountText.symbol(self.row))
+                Label(words, systemImage: AccountText.symbol(self.row, state: state, now: now))
                     .lineLimit(1)
                     .labelStyle(LegendLabelStyle(tint: look ? .orange : .secondary))
                     .foregroundStyle(look ? Color.primary : Color.secondary)
+                    .help(words)
                 // A nicknamed account also shows its number, which run results use (0.6.4).
-                if let number = AccountNaming.numberBeside(
-                    label: label, number: self.row.enrollmentId.flatMap { self.model.accountNumbers[$0] })
-                {
+                if let number {
                     // Kept whole at narrow widths; the state truncates first (its text is in VoiceOver).
                     Text("· \(number)").foregroundStyle(.secondary).lineLimit(1).fixedSize().layoutPriority(1)
                 }
@@ -1683,6 +1738,8 @@ private struct UsageCellView: View {
             }
             Text(cell.main).lineLimit(1).help(cell.main)
             if let weekly = cell.weekly { Text(weekly).font(.subheadline).foregroundStyle(.secondary).lineLimit(1) }
+            // When the reading was taken, on its own line so it is never cut off (0.7.0).
+            if let seen = cell.seen { Text(seen).font(.subheadline).foregroundStyle(.secondary).lineLimit(1) }
         }
         .accessibilityElement(children: .combine)
     }

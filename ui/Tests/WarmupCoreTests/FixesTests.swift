@@ -80,7 +80,7 @@ import Testing
         let count = cut.unresolved.count
         #expect(
             UnresolvedText.line(cut)
-                == "\(count) or more possible sends have no recorded result. They are never resent.")
+                == "\(count) or more sends have no recorded result. They are never resent.")
         let absent = try Self.status("status-paused") {
             $0.removeValue(forKey: "unresolvedTruncated")
             $0.removeValue(forKey: "historyTruncated")

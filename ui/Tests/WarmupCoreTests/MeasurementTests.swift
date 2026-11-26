@@ -134,21 +134,21 @@ import Testing
     @Test func usageCellRunningEndedAndNone() {
         let running = UsageText.cell(
             usage: Self.usage(used: 3.5, resetsAt: Self.reset1302), now: Self.eight, zone: Self.zone)
-        #expect(running.main == "96% left · resets 13:02 · seen 08:00")
+        #expect(running.line == "96% left · resets 13:02 · seen 08:00")
         #expect(running.fraction == 0.035)
         #expect(!running.ended)
         #expect(running.weekly == nil)
         let ended = UsageText.cell(
             usage: Self.usage(used: 50, resetsAt: Self.eight + 304 * Self.minute), now: Self.eight + 305 * Self.minute,
             zone: Self.zone)
-        #expect(ended.main == "Ended 13:04 · seen 08:00")
+        #expect(ended.line == "Ended 13:04 · seen 08:00")
         #expect(ended.ended)
         let none = UsageText.cell(usage: nil, now: Self.eight, zone: Self.zone)
         #expect(none.main == "No usage seen yet")
         #expect(none.fraction == nil)
         let noPercent = UsageText.cell(
             usage: Self.usage(used: nil, resetsAt: Self.reset1302), now: Self.eight, zone: Self.zone)
-        #expect(noPercent.main == "resets 13:02 · seen 08:00")
+        #expect(noPercent.line == "resets 13:02 · seen 08:00")
     }
 
     @Test func usageCellClampsAndNamesOtherDays() {
@@ -169,10 +169,83 @@ import Testing
             usage: Self.usage(
                 used: 4, resetsAt: Self.eight + Self.day + Self.hour, observedAt: Self.eight - 5 * Self.day),
             now: Self.eight, zone: Self.zone)
-        #expect(older.main == "96% left · resets Fri 09:00 · seen Sat 08:00")
+        #expect(older.line == "96% left · resets Fri 09:00 · seen Sat 08:00")
         #expect(UsageText.menuLine(label: "Work", cell: older) == "Work  ·  96% left · resets Fri 09:00")
         let line = UsageText.cell(
             usage: Self.usage(used: 3.5, resetsAt: Self.reset1302), now: Self.eight, zone: Self.zone)
         #expect(UsageText.menuLine(label: "Work", cell: line) == "Work  ·  96% left · resets 13:02")
+    }
+}
+
+/// App 0.7.0: the usage cell's own "seen" line, the age of a reading, and the measurement words.
+@Suite struct ReadingAge {
+    static let eight = Measurement.eight
+    static let hour = Measurement.hour
+    static let day = Measurement.day
+    static let zone = Measurement.zone
+
+    @Test func cellKeepsSeenOutOfMain() {
+        let running = UsageText.cell(
+            usage: Measurement.usage(used: 3.5, resetsAt: Measurement.reset1302), now: Self.eight, zone: Self.zone)
+        #expect(running.main == "96% left · resets 13:02")
+        #expect(running.seen == "Seen 08:00")
+        #expect(running.brief == "96% left · resets 13:02")
+        let ended = UsageText.cell(
+            usage: Measurement.usage(used: 50, resetsAt: Self.eight + 304 * Measurement.minute),
+            now: Self.eight + 305 * Measurement.minute, zone: Self.zone)
+        #expect(ended.main == "Ended 13:04")
+        #expect(ended.brief == "Ended 13:04")
+        #expect(ended.seen == "Seen 08:00")
+        let older = UsageText.cell(
+            usage: Measurement.usage(
+                used: 4, resetsAt: Self.eight + Self.day + Self.hour, observedAt: Self.eight - 5 * Self.day),
+            now: Self.eight, zone: Self.zone)
+        #expect(older.main == "96% left · resets Fri 09:00")
+        #expect(older.seen == "Seen Sat 08:00")
+        #expect(older.brief == "96% left · resets Fri 09:00")
+        let none = UsageText.cell(usage: nil, now: Self.eight, zone: Self.zone)
+        #expect(none.seen == nil)
+        #expect(none.brief == "No usage seen yet")
+        #expect(none.line == "No usage seen yet")
+        // Nothing but the time: `main` stays "seen 08:00" and it is not shown twice.
+        let bare = UsageText.cell(
+            usage: Measurement.usage(used: nil, resetsAt: nil), now: Self.eight, zone: Self.zone)
+        #expect(bare.main == "seen 08:00")
+        #expect(bare.brief == "seen 08:00")
+        #expect(bare.seen == nil)
+        #expect(bare.line == "seen 08:00")
+        let noShort = UsageText.cell(
+            usage: AccountUsage(primary: nil, secondary: nil, observedAt: Self.eight), now: Self.eight, zone: Self.zone)
+        #expect(noShort.main == "No short window")
+        #expect(noShort.brief == "No short window")
+        #expect(noShort.seen == "Seen 08:00")
+        #expect(noShort.line == "No short window · seen 08:00")
+        for cell in [running, ended, older, noShort] { #expect(!cell.main.contains("seen")) }
+    }
+
+    @Test func stateLineSaysWhenAReadingIsOld() {
+        func line(age: Int, readiness: String = "Ready", nicknamed: Bool = false) -> String {
+            AccountText.stateLine(
+                readiness: readiness, observedAt: Self.eight - age, nicknamed: nicknamed, now: Self.eight,
+                zone: Self.zone)
+        }
+        #expect(line(age: 2 * Self.hour) == "Ready")
+        #expect(line(age: 24 * Self.hour) == "Ready")
+        #expect(line(age: 30 * Self.hour) == "Ready · last seen Wed")
+        #expect(line(age: 8 * Self.day) == "Ready · last seen 4 Nov")
+        #expect(line(age: 30 * Self.hour, readiness: "Cooling down") == "Cooling down")
+        #expect(line(age: 30 * Self.hour, nicknamed: true) == "Ready")
+        let unread = AccountText.stateLine(
+            readiness: "Ready", observedAt: nil, nicknamed: false, now: Self.eight, zone: Self.zone)
+        #expect(unread == "Ready")
+    }
+
+    @Test func measurementWordsForUnsetAndSet() {
+        #expect(EffectReport.noCountFrom == "Decision period hasn't started.")
+        #expect(EffectReport.notStarted == "Decision period hasn't started. Counting the last 14 days.")
+        #expect(EffectReport.setStartDate == "Set Start Date…")
+        #expect(!EffectReport.noCountFrom.contains("count from"))
+        #expect(EffectProgress.text(clear: 3, countFromLabel: nil) == "3 of 10 warm-ups measured in the last 14 days")
+        #expect(EffectProgress.text(clear: 3, countFromLabel: "1 Dec") == "3 of 10 warm-ups measured since 1 Dec")
     }
 }

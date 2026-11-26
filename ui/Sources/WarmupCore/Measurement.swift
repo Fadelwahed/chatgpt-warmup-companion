@@ -66,8 +66,12 @@ extension EffectReport {
     public static let maxRows = 50
     /// The Overview footer under "Did it help?".
     public static let footer = "Read from the usage the provider reported at each warm-up. An observation, not proof."
-    /// Shown instead of a decision while no "count from" date is set.
-    public static let noCountFrom = "Set a \"count from\" date in Settings to get a decision."
+    /// Shown on Overview instead of a decision while no "count from" date is set (app 0.7.0).
+    public static let noCountFrom = "Decision period hasn't started."
+    /// Settings while no "count from" date is set: "Decision period hasn't started. Counting the last 14 days."
+    public static let notStarted = "\(noCountFrom) Counting the last \(periodDays) days."
+    /// The button that starts setting a "count from" date (Settings) or opens Settings to do so (Overview).
+    public static let setStartDate = "Set Start Date…"
 
     /// The start of `day` (`yyyy-MM-dd`) in `zone`, in epoch milliseconds; nil for a bad day or zone.
     public static func countFromStart(day: String, zone: String) -> Int? {
@@ -129,7 +133,8 @@ enum DurationText {
 
 /// The usage cell for one account: what the provider reported at the last warm-up.
 public struct UsageCell: Sendable, Equatable {
-    /// "96% left · resets 13:02 · seen 08:00", "Ended 13:04 · seen 08:00", "No usage seen yet".
+    /// "96% left · resets 13:02", "Ended 13:04", "No usage seen yet" (app 0.7.0: no "seen" part, which
+    /// is `seen`). With no percent and no reset it stays "seen 08:00" and `seen` is nil.
     public let main: String
     /// `main` without its "seen" part, for the menu.
     public let brief: String
@@ -139,6 +144,11 @@ public struct UsageCell: Sendable, Equatable {
     public let fraction: Double?
     /// The short window's reset has passed.
     public let ended: Bool
+    /// "Seen Tue 00:10": when the reading was taken; nil without usage, or when `main` already says it.
+    public let seen: String?
+    /// The pre-0.7.0 one-line form, "96% left · resets 13:02 · seen 08:00", which the CLI and `--json`
+    /// keep byte for byte.
+    public let line: String
 }
 
 public enum UsageText {
@@ -146,27 +156,53 @@ public enum UsageText {
 
     public static func cell(usage: AccountUsage?, now: Int, zone: String) -> UsageCell {
         guard let usage else {
-            return UsageCell(main: Self.noUsage, brief: Self.noUsage, weekly: nil, fraction: nil, ended: false)
+            return UsageCell(
+                main: Self.noUsage, brief: Self.noUsage, weekly: nil, fraction: nil, ended: false, seen: nil,
+                line: Self.noUsage)
         }
-        let seen = "seen " + UsageSummary.resetTime(usage.observedAt, zone: zone, now: now)
+        let time = UsageSummary.resetTime(usage.observedAt, zone: zone, now: now)
+        let seen = "seen " + time
+        let seenLine = "Seen " + time
         let weekly = Self.weekly(usage, zone: zone, now: now)
         guard let short = UsageLog.shortWindow(usage) else {
             let brief = "No short window"
-            return UsageCell(main: "\(brief) · \(seen)", brief: brief, weekly: weekly, fraction: nil, ended: false)
+            return UsageCell(
+                main: brief, brief: brief, weekly: weekly, fraction: nil, ended: false, seen: seenLine,
+                line: "\(brief) · \(seen)")
         }
         let used = short.usedPercent.map { min(100, max(0, $0)) }
         if let reset = short.resetsAt, reset <= now {
             let brief = "Ended " + UsageSummary.resetTime(reset, zone: zone, now: now)
-            return UsageCell(main: "\(brief) · \(seen)", brief: brief, weekly: weekly, fraction: nil, ended: true)
+            return UsageCell(
+                main: brief, brief: brief, weekly: weekly, fraction: nil, ended: true, seen: seenLine,
+                line: "\(brief) · \(seen)")
         }
         var parts: [String] = []
         if let used { parts.append("\(Int((100 - used).rounded(.down)))% left") }
         if let reset = short.resetsAt { parts.append("resets " + UsageSummary.resetTime(reset, zone: zone, now: now)) }
+        // Nothing but the time: `main` stays "seen 08:00" and the time is not shown twice.
+        guard !parts.isEmpty else {
+            return UsageCell(
+                main: seen, brief: seen, weekly: weekly, fraction: used.map { $0 / 100 }, ended: false, seen: nil,
+                line: seen)
+        }
         let brief = parts.joined(separator: " · ")
-        let main = parts.isEmpty ? seen : "\(brief) · \(seen)"
         return UsageCell(
-            main: main, brief: parts.isEmpty ? seen : brief, weekly: weekly, fraction: used.map { $0 / 100 },
-            ended: false)
+            main: brief, brief: brief, weekly: weekly, fraction: used.map { $0 / 100 }, ended: false, seen: seenLine,
+            line: "\(brief) · \(seen)")
+    }
+
+    /// A reading older than this reads as old on Accounts and in the menu header (app 0.7.0).
+    public static let staleAfter = 24 * 3_600_000
+    /// Past this, a weekday alone is ambiguous: the date is named instead.
+    static let weekdayLimit = 6 * 24 * 3_600_000
+
+    /// "last seen Tue", or "last seen 18 Nov" past 6 days; nil while the reading is 24 hours old or less.
+    public static func lastSeen(observedAt: Int, now: Int, zone: String) -> String? {
+        let age = now - observedAt
+        guard age > Self.staleAfter else { return nil }
+        let pattern = age > Self.weekdayLimit ? "d MMM" : "EEE"
+        return "last seen " + LocalTime.format(observedAt, zone: zone, pattern: pattern)
     }
 
     /// "Work  ·  96% left · resets 13:02": no "seen" part (the menu's section header says when).

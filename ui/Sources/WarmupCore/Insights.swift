@@ -176,8 +176,23 @@ public struct WeekDay: Sendable, Equatable, Identifiable {
     }
 }
 
+extension WeekDay.Slot {
+    /// The minute shown in the week strip: the run or due minute (`RunTimes`, as on Today), else the
+    /// keyed time. Clicks and VoiceOver actions still use `id`, the slot label.
+    public func shown(runs: RunTimes) -> String { runs.time(of: self.id) ?? self.time }
+}
+
 extension WeekDay {
     static let legendOrder: [Mark] = [.confirmed, .uncertain, .problem, .missed, .skipped]
+
+    /// "+2 manual results", "+1 manual result"; nil for none.
+    public var manualText: String? {
+        guard self.manualRuns > 0 else { return nil }
+        return "+\(self.manualRuns) manual result\(self.manualRuns == 1 ? "" : "s")"
+    }
+
+    /// The legend line for the manual count, shown when any day has one.
+    public static let manualLegend = "+N manual results: account results from manual warm-ups that day."
 
     /// The marks that appear in `days`, in legend order, so the legend lists only what is shown.
     public static func marksPresent(_ days: [WeekDay]) -> [Mark] {

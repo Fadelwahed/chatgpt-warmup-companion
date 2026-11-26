@@ -131,7 +131,11 @@ final class MainWindowController: NSObject, NSWindowDelegate {
         for tab in Self.sidebarTabs {
             let view: AnyView =
                 switch tab {
-                case .status: AnyView(StatusPane(openSchedule: { [weak self] in self?.show(tab: .schedule) }))
+                case .status:
+                    AnyView(
+                        StatusPane(
+                            openSchedule: { [weak self] in self?.show(tab: .schedule) },
+                            openSettings: { [weak self] in self?.show(tab: .settings) }))
                 case .schedule: AnyView(SchedulePane())
                 case .accounts, .settings: AnyView(AccountsPane())
                 }

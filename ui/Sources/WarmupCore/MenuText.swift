@@ -161,6 +161,18 @@ public struct TodayLine: Sendable, Equatable {
 public enum MenuText {
     public static let accountsHeader = "Accounts · seen at the last warm-up"
 
+    /// The Accounts section header: `accountsHeader` while every reading is 24 hours old or less,
+    /// otherwise "Accounts · last seen Tue 00:10" for the oldest one ("18 Nov 00:10" past 6 days). Only
+    /// accounts that are not turned off (`turnedOff` enrollment IDs) and have a reading count.
+    public static func accountsTitle(accounts: [AccountState], turnedOff: Set<String>, now: Int, zone: String)
+        -> String
+    {
+        let oldest = accounts.filter { !turnedOff.contains($0.enrollmentId) }.compactMap { $0.usage?.observedAt }.min()
+        guard let oldest, now - oldest > UsageText.staleAfter else { return Self.accountsHeader }
+        let pattern = now - oldest > UsageText.weekdayLimit ? "d MMM HH:mm" : "EEE HH:mm"
+        return "Accounts · last seen " + LocalTime.format(oldest, zone: zone, pattern: pattern)
+    }
+
     /// `available` is false while no schedule projection has been read: the line then says so
     /// instead of claiming there are no warm-ups.
     public static func today(marks: [TodayMark], available: Bool = true) -> TodayLine {
@@ -205,10 +217,10 @@ public enum MenuText {
         glance.unseenProblemSlot == nil ? nil : glance.headline
     }
 
-    /// "2 new possible sends with no result", or nil for none. Count only rows newer than the last review.
+    /// "2 new sends without a result", or nil for none. Count only rows newer than the last review.
     public static func unreviewed(count: Int) -> String? {
         guard count > 0 else { return nil }
-        return count == 1 ? "1 new possible send with no result" : "\(count) new possible sends with no result"
+        return count == 1 ? "1 new send without a result" : "\(count) new sends without a result"
     }
 
     /// One line per account in order, at most `limit`, then "5 accounts…". Labels fall back to "Account N".

@@ -191,6 +191,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
                 (account: $0.enrollmentId, cell: UsageText.cell(usage: $0.usage, now: now, zone: status.schedule.zone))
             }
             lines = MenuText.accounts(cells: cells, labels: self.model.labels, limit: Self.maxAccountLines)
+            let turnedOff = Set(
+                (self.model.accounts?.rows ?? []).filter { AccountText.readiness($0) == "Turned off" }
+                    .compactMap(\.enrollmentId))
+            self.accountsHeader.title = MenuText.accountsTitle(
+                accounts: status.accounts, turnedOff: turnedOff, now: now, zone: status.schedule.zone)
         } else {
             lines = []
         }

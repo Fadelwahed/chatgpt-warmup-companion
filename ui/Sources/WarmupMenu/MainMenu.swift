@@ -4,6 +4,7 @@ import WarmupCore
 /// The main menu for the window. Warm-up runs as a menu-bar (accessory) app; while its window is
 /// open it becomes a regular app, so this menu gives the standard keyboard routes: Cmd-W, Cmd-M,
 /// Cmd-Q, the Edit commands for the time fields, and Cmd-1 to Cmd-3 for the sidebar panes, Cmd-comma for the Settings window and Cmd-R to refresh.
+/// The Schedule menu repeats the status menu's Warm Up Now… and Pause or Resume Scheduling…, without keys.
 /// The last menu, Help, opens the Warm-up Help window (Cmd-?).
 @MainActor
 final class MainMenu: NSObject {
@@ -54,6 +55,7 @@ final class MainMenu: NSObject {
         refresh.target = self
         view += [.separator(), refresh]
         main.addItem(self.submenu("View", items: view))
+        main.addItem(self.submenu("Schedule", items: self.scheduleItems()))
         let windowMenu = self.submenu(
             "Window",
             items: [
@@ -84,6 +86,19 @@ final class MainMenu: NSObject {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
         item.keyEquivalentModifierMask = modifiers
         return item
+    }
+
+    /// The status menu's actions, run by the same controller with the same enabled state; the pause
+    /// title follows the schedule as the menu opens (`StatusItemController.validateMenuItem`).
+    private func scheduleItems() -> [NSMenuItem] {
+        let controller = StatusItemController.current
+        let warmUp = NSMenuItem(
+            title: "Warm Up Now…", action: #selector(StatusItemController.warmUp), keyEquivalent: "")
+        let pause = NSMenuItem(
+            title: MenuIcons.pauseItem(scheduleEnabled: nil).title,
+            action: #selector(StatusItemController.togglePause), keyEquivalent: "")
+        for item in [warmUp, pause] { item.target = controller }
+        return [warmUp, pause]
     }
 
     private func settingsItem() -> NSMenuItem {

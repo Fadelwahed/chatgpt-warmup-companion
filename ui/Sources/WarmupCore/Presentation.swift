@@ -99,7 +99,7 @@ public enum Wording {
         case "in_progress": "Running now"
         case "not_admitted": "Missed"
         case "scheduled": "Upcoming"
-        case "excluded": "Off: not a scheduled day"
+        case "excluded": "Skipped: day off"
         case "not_configured": "Not in the current schedule"
         case "nonexistent_local_time": "This time does not exist that day (clocks go forward)"
         case "unobserved": "No check-in was recorded at this minute; the reason is not known"

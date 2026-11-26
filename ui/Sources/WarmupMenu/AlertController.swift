@@ -302,7 +302,8 @@ final class AlertController: NSObject, ObservableObject {
                 guard generation == self.generation, self.enabled else { return }
             }
             let problems = self.tracker.observe(installation: installation, status: status, history: history)
-            let entries = problems.map { PendingAlert($0, zone: status.schedule.zone) }
+            let runs = RunTimes.make(status: status, projection: self.model.projection)
+            let entries = problems.map { PendingAlert($0, zone: status.schedule.zone, runs: runs) }
             self.refused = entries.map { self.add($0) }.contains(false)
             // The notice is due only while its gap start is recorded.
             if self.tracker.takeIncompleteNotice(), let gapStart = self.tracker.incompleteGapStart,

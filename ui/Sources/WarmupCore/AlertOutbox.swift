@@ -28,16 +28,24 @@ public struct PendingAlert: Sendable, Equatable, Codable {
     public let zone: String
     /// Engine milliseconds: when the problem was recorded, or where the unread history gap starts.
     public let detectedAt: Int
+    /// The minute the slot ran ("HH:mm") when `RunTimes` resolved one other than the label's own time
+    /// at queueing, so an alert delivered before the first status read still names it (app 0.7.0).
+    /// Nil in entries stored before 0.7.0 and for a time that ran at its label.
+    public let runMinute: String?
 
-    public init(slot: String, problem: Problem, zone: String, detectedAt: Int) {
+    public init(slot: String, problem: Problem, zone: String, detectedAt: Int, runMinute: String? = nil) {
         self.slot = slot
         self.problem = problem
         self.zone = zone
         self.detectedAt = detectedAt
+        self.runMinute = runMinute
     }
 
-    public init(_ problem: SlotProblem, zone: String) {
-        self.init(slot: problem.slot, problem: .slot(problem.kind), zone: zone, detectedAt: problem.at)
+    /// The entry for `problem`, with its run minute from the same resolver the live alert uses.
+    public init(_ problem: SlotProblem, zone: String, runs: RunTimes = .none) {
+        self.init(
+            slot: problem.slot, problem: .slot(problem.kind), zone: zone, detectedAt: problem.at,
+            runMinute: runs.byLabel[problem.slot])
     }
 
     /// The notice for `status`, owed since the gap that could not be read starts at `gapStart`.

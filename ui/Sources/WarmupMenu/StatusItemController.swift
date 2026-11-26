@@ -8,8 +8,11 @@ import WarmupCore
 /// Classic NSStatusItem + NSMenu (plan 6.2). Opening the menu reads status (and only the reads
 /// `ReadPlan` asks for) unless the last good read is under 10 seconds old; it never sends a probe.
 @MainActor
-final class StatusItemController: NSObject, NSMenuDelegate {
+final class StatusItemController: NSObject, NSMenuDelegate, NSMenuItemValidation {
     private static let maxAccountLines = 4
+    /// The app menu's Schedule items target this controller, so both menus run the same actions with
+    /// the same enabled state (app 0.7.0). Set at init; the app makes one.
+    private(set) static weak var current: StatusItemController?
 
     private let model: AppModel
     private let window: MainWindowController
@@ -39,6 +42,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         self.model = model
         self.window = window
         super.init()
+        Self.current = self
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.menu = self.buildMenu()
         self.statusItem = statusItem
@@ -227,13 +231,27 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         self.pauseItem.image = NSImage(systemSymbolName: pause.symbol, accessibilityDescription: nil)
     }
 
+    /// Enabled state and the pause or resume title for the app menu's Schedule items. The status menu
+    /// does not auto-enable, so `updateActions` sets its own items.
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        switch item.action {
+        case #selector(self.warmUp):
+            return self.model.controlsAvailable
+        case #selector(self.togglePause):
+            item.title = MenuIcons.pauseItem(scheduleEnabled: self.model.status?.scheduleEnabled).title
+            return self.model.controlsAvailable
+        default:
+            return true
+        }
+    }
+
     /// The window opens only when the action was confirmed, to show its result.
-    @objc private func warmUp() {
+    @objc func warmUp() {
         self.model.request(
             .runAll(allowSlotOverlap: false), confirmed: { [weak self] in self?.window.show(tab: .status) })
     }
 
-    @objc private func togglePause() {
+    @objc func togglePause() {
         guard let status = self.model.status else { return }
         let action: WarmupAction =
             status.scheduleEnabled

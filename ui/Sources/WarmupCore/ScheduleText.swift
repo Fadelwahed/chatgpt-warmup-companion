@@ -119,6 +119,22 @@ public enum ScheduleRowText {
         return "\(TodayMark.Kind.skipped.glyph) Skipped: \(words)"
     }
 
+    /// The secondary label on a Today row whose time is not one of the every-day times (app 0.7.0).
+    public static let todayOnly = "today only"
+
+    /// `todayOnly` for an upcoming time in the projection's today whose logical time is not among the
+    /// projection's every-day times (a time added for today, or one that changes from tomorrow); nil
+    /// for a past time, an every-day time or no projection.
+    public static func todayOnly(admission: ProjectedAdmission, projection: ScheduleProjection?, now: Int) -> String? {
+        guard let projection,
+            let today = projection.days.first(where: { $0.date == projection.localDate }),
+            today.admissions.contains(where: { $0.id == admission.id })
+        else { return nil }
+        let past = admission.at.map { $0 <= now } ?? (admission.state != "upcoming")
+        guard !past, !projection.times.contains(admission.logicalTime) else { return nil }
+        return self.todayOnly
+    }
+
     static func capitalized(_ text: String) -> String { text.prefix(1).uppercased() + text.dropFirst() }
 }
 

@@ -461,6 +461,7 @@ public enum AlertComposer {
     public static func content(
         for pending: [PendingAlert], macZone: String? = TimeZone.current.identifier, runs: RunTimes = .none
     ) -> AlertContent? {
+        let runs = self.runs(runs, filledFrom: pending)
         let problems = pending.filter { $0.slotProblem != nil }.sorted { $0.slot < $1.slot }
         if let newest = problems.last {
             let content = self.content(
@@ -477,6 +478,20 @@ public enum AlertComposer {
         guard case let .incompleteHistory(latestSlot)? = pending.first?.problem else { return nil }
         // Without a valid latest slot it opens Overview, so it is never held back (060-FIX5 item 2).
         return self.incompleteHistory(latestSlot: latestSlot) ?? self.incompleteNotice(slot: "")
+    }
+
+    /// `live` with each entry's stored run minute added where `live` resolves none, so an alert
+    /// delivered before the first status read names the minute it ran (app 0.7.0). A stored value
+    /// that is not a plain "HH:mm" is ignored; the entry itself is still delivered.
+    static func runs(_ live: RunTimes, filledFrom pending: [PendingAlert]) -> RunTimes {
+        var times = live.byLabel
+        for entry in pending where times[entry.slot] == nil {
+            guard let minute = entry.runMinute, TodayMark.isClock(minute),
+                FriendlyTime.split(entry.slot)?.1 != minute
+            else { continue }
+            times[entry.slot] = minute
+        }
+        return RunTimes(byLabel: times)
     }
 
     /// The notification identifier for an alert naming `slots` (oldest first): "warmup.slot." and the

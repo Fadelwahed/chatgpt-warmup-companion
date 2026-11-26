@@ -774,6 +774,7 @@ private struct MeasurementSection: View {
                         displayedComponents: .date
                     )
                     .environment(\.timeZone, zone)
+                    .environment(\.locale, Locale(identifier: "en_GB"))  // day before month, like "Fri 27 Nov"
                     Button("Clear") { self.model.setCountFrom(nil) }
                         .accessibilityLabel("Clear the count from date")
                 }
@@ -784,6 +785,7 @@ private struct MeasurementSection: View {
                         displayedComponents: .date
                     )
                     .environment(\.timeZone, zone)
+                    .environment(\.locale, Locale(identifier: "en_GB"))  // day before month, like "Fri 27 Nov"
                     Button("Cancel") { self.choosing = false }
                     Button("Start") {
                         self.model.setCountFrom(ClockTime.day(from: self.pending, zone: zone))
@@ -1058,6 +1060,11 @@ struct SchedulePane: View {
                                 admission: admission,
                                 words: ScheduleRowText.words(
                                     admission: admission, mark: mark, isNext: admission.next == true, now: now))
+                            if let only = ScheduleRowText.todayOnly(
+                                admission: admission, projection: projection, now: now)
+                            {
+                                Text(only).foregroundStyle(.secondary)
+                            }
                             if let wake = ScheduleWakeText.row(
                                 admission: admission, plan: self.model.wakePlan, now: now)
                             {
@@ -1105,7 +1112,7 @@ struct SchedulePane: View {
                         }
                         .accessibilityElement(children: .combine)
                         if let exclusion = day.exclusion {
-                            Label(self.offText(exclusion), systemImage: "calendar.badge.minus")
+                            Label(ScheduleRowText.excluded(exclusion), systemImage: "calendar.badge.minus")
                         } else if day.admissions.isEmpty {
                             Text("No warm-ups")
                         }
@@ -1225,10 +1232,6 @@ struct SchedulePane: View {
     private func dayTitle(_ day: ProjectedDay, zone: String) -> String {
         ScheduleDayName.title(day.date, count: day.attemptsPerAccount, today: FriendlyTime.today(zone: zone))
     }
-
-    private func offText(_ exclusion: String) -> String {
-        exclusion == "vacation" ? "Off: time off" : exclusion == "weekday" ? "Off: not a scheduled day" : "Off: \(Wording.code(exclusion))"
-    }
 }
 
 /// The time editor in a sheet (X4): Add, Move, Remove, Days; Preview; the proposal with its marks;
@@ -1331,7 +1334,7 @@ private struct VacationSection: View {
                     HStack {
                         Label(VacationText.range(start: range.start, end: range.end), systemImage: "airplane")
                         Spacer()
-                        Button(started ? "End After Today…" : "Remove…") {
+                        Button(started ? "End After Today" : "Remove") {
                             self.model.setting(.include(start: range.start, end: range.end))
                         }
                         .modifier(ActionGate(model: self.model, help: "Scheduled warm-ups return for the days after today"))
@@ -1342,9 +1345,13 @@ private struct VacationSection: View {
                 let tomorrow = self.tomorrow(zone: zone)
                 DatePicker("From", selection: self.$input.start, in: tomorrow..., displayedComponents: .date)
                     .environment(\.timeZone, zone)
-                DatePicker("To", selection: self.$input.end, in: max(self.input.start, tomorrow)..., displayedComponents: .date)
-                    .environment(\.timeZone, zone)
-                Button("Add Time Off…") { self.model.addVacation(from: self.input.start, to: self.input.end) }
+                    .environment(\.locale, Locale(identifier: "en_GB"))  // day before month, like "Fri 27 Nov"
+                DatePicker(
+                    "To", selection: self.$input.end, in: max(self.input.start, tomorrow)..., displayedComponents: .date
+                )
+                .environment(\.timeZone, zone)
+                .environment(\.locale, Locale(identifier: "en_GB"))  // day before month, like "Fri 27 Nov"
+                Button("Add Time Off") { self.model.addVacation(from: self.input.start, to: self.input.end) }
                     .modifier(ActionGate(model: self.model, help: "No scheduled warm-ups on these days, both included"))
                 Text("Time off starts tomorrow at the earliest. To stop today's warm-ups, pause scheduling.")
                     .font(.callout)
@@ -1822,7 +1829,7 @@ private struct AccountActions: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .help(self.model.controlsUnavailableReason.map { "Rename only: \($0)" } ?? "Actions. Each engine action asks for confirmation first")
+            .help(self.model.controlsUnavailableReason.map { "Rename only: \($0)" } ?? "Actions. Warm Up and Enroll ask first; Daily Limit applies at once.")
             .accessibilityLabel("Actions for \(label)")
         } else {
             Text("—").accessibilityLabel("No action available")

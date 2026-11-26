@@ -363,4 +363,57 @@ extension AlertOutboxBehavior {
         let same = try #require(AlertComposer.content(for: [gaza, Self.entry("2026-11-12T13:00")], macZone: "UTC"))
         #expect(same.body.hasPrefix("Thu 12 Nov 08:00, Thu 12 Nov 13:00 (Asia/Gaza). "))
     }
+
+    /// Work order 135 item 6: a queued entry keeps the minute its slot ran, so an alert delivered
+    /// before the first status read names it; entries stored without it decode and behave as before.
+    @Test func pendingAlertCarriesItsRunMinute() throws {
+        let problem = SlotProblem(slot: "2026-11-12T13:00", kind: .notAdmitted(cause: "no_tick_between"), at: 1_000)
+        let moved = RunTimes(byLabel: ["2026-11-12T13:00": "13:10"])
+        let queued = PendingAlert(problem, zone: "Asia/Gaza", runs: moved)
+        #expect(queued.runMinute == "13:10")
+        #expect(PendingAlert(problem, zone: "Asia/Gaza").runMinute == nil)
+        // Round trips with and without the field; nil writes no key.
+        for entry in [queued, Self.entry("2026-11-12T13:00")] {
+            let outbox = AlertOutbox().adding(entry)
+            #expect(try JSONDecoder().decode(AlertOutbox.self, from: try JSONEncoder().encode(outbox)) == outbox)
+        }
+        let plain = String(decoding: try JSONEncoder().encode(Self.entry("2026-11-12T13:00")), as: UTF8.self)
+        #expect(!plain.contains("runMinute"))
+        // A queued alert for a time moved to 13:10, delivered before any status read, names 13:10.
+        let delivered = try #require(AlertComposer.content(for: [queued], macZone: "Asia/Gaza"))
+        #expect(delivered.title == "The 13:10 warm-up was missed")
+        #expect(delivered.body.hasPrefix("Thu 12 Nov 13:10."))
+        #expect(delivered.identifier == "warmup.slot.2026-11-12T13:00")
+        #expect(delivered.slots == ["2026-11-12T13:00"])
+    }
+
+    /// An entry stored before 0.7.0 has no run minute: it decodes and follows the live resolver.
+    @Test func oldStoredAlertDecodesAndUsesLiveRuns() throws {
+        let old = Self.entry("2026-11-12T13:00")
+        var object = try #require(
+            try JSONSerialization.jsonObject(with: try JSONEncoder().encode(AlertOutbox().adding(old)))
+                as? [String: Any])
+        #expect((object["entries"] as? [[String: Any]])?.first?["runMinute"] == nil)
+        object["installation"] = "abc"
+        let decoded = try JSONDecoder().decode(
+            AlertOutbox.self, from: try JSONSerialization.data(withJSONObject: object))
+        let entry = try #require(decoded.entries.first)
+        #expect(entry == old)
+        #expect(entry.runMinute == nil)
+        let today = try #require(AlertComposer.content(for: [entry], macZone: "Asia/Gaza"))
+        #expect(today.title == "The 13:00 warm-up was missed")
+        let live = RunTimes(byLabel: ["2026-11-12T13:00": "13:05"])
+        let followed = try #require(AlertComposer.content(for: [entry], macZone: "Asia/Gaza", runs: live))
+        #expect(followed.title == "The 13:05 warm-up was missed")
+    }
+
+    /// A stored run minute that is not a plain "HH:mm" is ignored; the entry is still delivered.
+    @Test func malformedRunMinuteIsIgnored() throws {
+        let entry = PendingAlert(
+            slot: "2026-11-12T13:00", problem: .slot(.notAdmitted(cause: "no_tick_between")), zone: "Asia/Gaza",
+            detectedAt: 1_000, runMinute: "13:10 token")
+        let content = try #require(AlertComposer.content(for: [entry], macZone: "Asia/Gaza"))
+        #expect(content.title == "The 13:00 warm-up was missed")
+        #expect(!content.body.contains("token"))
+    }
 }

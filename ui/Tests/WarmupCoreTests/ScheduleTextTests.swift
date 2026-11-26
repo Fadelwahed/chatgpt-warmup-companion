@@ -135,6 +135,44 @@ import Testing
         #expect(ScheduleRowText.words(admission: next, mark: nil, isNext: false, now: now) == "Upcoming")
         #expect(ScheduleRowText.excluded("vacation") == "– Skipped: time off")
     }
+
+    /// Work order 135 item 3: one string per day-off case for today, coming days and the preview, and
+    /// the slot-detail headline in the same words; none starts with "Off:".
+    @Test func daysOffReadTheSameEverywhere() {
+        #expect(ScheduleRowText.excluded("vacation") == "– Skipped: time off")
+        #expect(ScheduleRowText.excluded("weekday") == "– Skipped: day off")
+        #expect(Wording.verdict("excluded") == "Skipped: day off")
+        let rows = ["vacation", "weekday", "other_reason"].map(ScheduleRowText.excluded)
+        for text in rows + [Wording.verdict("excluded")] { #expect(!text.hasPrefix("Off:")) }
+    }
+
+    /// Work order 135 item 4: "today only" for an upcoming time today that is not an every-day time.
+    @Test func todayOnlyLabel() throws {
+        let now = Self.at1300 + 60_000
+        let projection = try self.projection { object in
+            guard var days = object["days"] as? [[String: Any]],
+                var admissions = days[0]["admissions"] as? [[String: Any]], var extra = admissions.last
+            else { return }
+            extra["slot"] = "2026-11-12T15:00"
+            extra["logicalTime"] = "15:00"
+            extra["admission"] = "15:00"
+            extra["at"] = Self.at1300 + 2 * 3_600_000
+            extra["state"] = "upcoming"
+            admissions.append(extra)
+            days[0]["admissions"] = admissions
+            object["days"] = days
+        }
+        #expect(projection.times == ["08:00", "13:00", "18:00"])
+        let today = try #require(projection.days.first { $0.date == projection.localDate }?.admissions)
+        let added = try #require(today.first { $0.logicalTime == "15:00" })
+        #expect(ScheduleRowText.todayOnly(admission: added, projection: projection, now: now) == "today only")
+        let everyDay = try #require(today.first { $0.logicalTime == "18:00" })
+        #expect(ScheduleRowText.todayOnly(admission: everyDay, projection: projection, now: now) == nil)
+        // Once its minute has passed, the added time is no longer labelled.
+        let later = Self.at1300 + 3 * 3_600_000
+        #expect(ScheduleRowText.todayOnly(admission: added, projection: projection, now: later) == nil)
+        #expect(ScheduleRowText.todayOnly(admission: added, projection: nil, now: now) == nil)
+    }
 }
 
 /// 060-FIX6 item 5: "Today" names only the current date in the schedule zone.

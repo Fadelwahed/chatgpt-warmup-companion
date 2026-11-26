@@ -115,6 +115,8 @@ scripts/schedule-wakes.sh             # book them; asks for your password once
 
 Run it as yourself, not with `sudo`. It replaces only the wakes it booked before (owner `warmup` in `pmset -g sched`), so rerun it weekly and after any schedule change; `--cancel` removes them. A wake cannot start a Mac that is shut down. `pmset` keeps a single repeating wake, so `sudo pmset repeat wakeorpoweron MTWRFSU 07:55:00` covers only your first slot.
 
+With the lid closed, a booked wake may be only a short dark wake. `scripts/wake-test.sh` measures this without sending anything: it books four test wakes 4 minutes apart (owner `waketest`, never `warmup`) and a watcher logs, at each wake, how long the Mac stays awake with no assertion or with `caffeinate -i`, `-u` or `-s -i`, and when a name lookup of `chatgpt.com` succeeds. Unplug any external display, run it, close the lid until the time it prints, then run `scripts/wake-test.sh --report`. Logs go to `~/Library/Logs/warmup-wake-test/`; `--dry-run` and `--self-test` change nothing; `--cancel` removes the test wakes and stops the watcher.
+
 ## Install the app
 
 The app is optional. Without it, everything still works from the command line.

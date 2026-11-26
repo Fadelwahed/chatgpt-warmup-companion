@@ -7,6 +7,16 @@ Notable changes to Warm-up: the engine (`warmup.mjs` and its modules) and the me
 - Engine 1.2.4-offline: a scheduled send that fails on DNS or the network before anything is sent is retried up to twice; the Mac is kept awake while a batch runs.
 - `scripts/schedule-wakes.sh` books a one-time macOS wake 5 seconds into each warm-up of the next 7 days (one password prompt; `--dry-run`, `--cancel`), replacing only the wakes it booked before.
 
+### App 0.7.0
+
+- **Honest headline.** After a missed or unconfirmed warm-up today has been seen, the headline reads "Next 13:10 · 1 missed today" instead of returning to "All good". Health shows how many of the last 7 days' warm-ups were confirmed.
+- **Wakes on Schedule.** Each upcoming time shows whether a macOS wake is booked for it, one line says how far the bookings reach, and with alerts on one notification arrives the day before they run out.
+- **Why warm-ups were missed.** The week shows one cause line; a missed time says what happened, whether it still applies and what to do; a blocked headline says since when.
+- **Accounts.** Each reading shows when it was taken, an old one says "last seen Tue", turned-off accounts are tucked away, and the table and `--status` agree on blocked and cooling-down accounts.
+- **Wording.** "Sends without a result" is the one name in the window, menu and `--status`. Days off read "Skipped: …" in every Schedule list. Measurement says "Decision period hasn't started." until a start date is set.
+- **Menu bar.** A Schedule menu with "Warm Up Now…" and "Pause/Resume Scheduling…".
+- **CLI.** The `verdict` text in `--status` and `--json` follows the new wording. In `--json`, keys and values other than `verdict` are unchanged; exit codes are unchanged.
+
 ### App 0.6.10
 
 - **Alert when Router blocks Warm-up.** With alerts on, one notification as soon as the engine reports Router compatibility blocked (for example after a codex-router update), once per blocking episode, instead of only after a warm-up is skipped.

@@ -1,9 +1,9 @@
 import Foundation
 
 // App 0.6 read-only CLI (F10): `WarmupMenu --status` prints the verdict, today's times, health and
-// accounts; `--json` the same facts for agents. It reads only `status` and `schedule inspect` through
-// the stored binding. Output numbers accounts "Account N" and carries no IDs, paths, nicknames or
-// emails, like Copy Status Summary.
+// accounts; `--json` the same facts for agents. It reads only `status`, `schedule inspect` and (app
+// 0.7.2) `history` through the stored binding. Output numbers accounts "Account N" and carries no IDs,
+// paths, nicknames or emails, like Copy Status Summary.
 
 public enum StatusCLI {
     public enum Mode: Sendable, Equatable {
@@ -39,16 +39,22 @@ public enum StatusCLI {
         }
     }
 
-    /// One validated read: status and, when it could be read, the projection.
+    /// One validated read: status and, when they could be read, the projection and the history.
     public struct Snapshot: Sendable, Equatable {
         public let status: EngineStatus
         public let observedAt: Int?
         public let projection: ScheduleProjection?
+        /// The `history` reply (rows and its truncated flag) read after a matching pair (app 0.7.2), so
+        /// Today and the headline get the window's input; nil when it was not read or failed.
+        public let history: HistoryReport?
 
-        public init(status: EngineStatus, observedAt: Int?, projection: ScheduleProjection?) {
+        public init(
+            status: EngineStatus, observedAt: Int?, projection: ScheduleProjection?, history: HistoryReport? = nil
+        ) {
             self.status = status
             self.observedAt = observedAt
             self.projection = projection
+            self.history = history
         }
     }
 
@@ -78,7 +84,8 @@ public enum StatusCLI {
         public let health: [Check]
         public let accounts: [Account]
         public let checkedAt: String
-        /// Possible sends with no recorded result (count only); absent when there are none.
+        /// Possible sends with no recorded result and not marked reviewed in the app (count only); absent
+        /// when there are none (app 0.7.2).
         public let unresolvedSends: Int?
         /// True when the engine cut the unresolved list, so `unresolvedSends` is a lower bound; absent
         /// otherwise (060-FIX7 item 5).
@@ -95,6 +102,7 @@ public enum StatusCLI {
     /// returns no projection, so nothing is printed (060-FIX4 item 2, 060-FIX5 item 3, 060-FIX6 item 4).
     /// A reply without a valid `observedAt` is a mismatch too: the date is never taken from the wall
     /// clock (060-FIX7 item 3). A failed or not-ready inspect is retried the same way (060-FIX8 item 4).
+    /// Only a matching pair is followed by the `history` read (app 0.7.2); its failure leaves none.
     public static func read(client: EngineClient) async -> Snapshot? {
         var unpaired: Snapshot?
         for _ in 0..<Self.pairAttempts {
@@ -111,9 +119,24 @@ public enum StatusCLI {
             guard let observedAt, Self.paired(projection: projection, status: status, observedAt: observedAt) else {
                 continue
             }
-            return Snapshot(status: status, observedAt: observedAt, projection: projection)
+            let history = await Self.history(client: client, observedAt: observedAt)
+            return Snapshot(status: status, observedAt: observedAt, projection: projection, history: history)
         }
         return unpaired
+    }
+
+    /// Days of history the window reads for the week strip (`AppModel.loadWeek`).
+    static let historyDays = 8
+
+    /// The window's read-only `history` read, counted back from the status observation's own time,
+    /// never the wall clock. Nil when it fails or is not ready: Today then falls back to status alone.
+    static func history(client: EngineClient, observedAt: Int) async -> HistoryReport? {
+        let since = observedAt - Self.historyDays * 86_400_000
+        let command = EngineCommand.history(account: nil, since: AlertTracker.historySince(since))
+        guard case let .success(reply) = await client.read(command, as: HistoryReport.self),
+            reply.envelope.outcome == "ready", let report = reply.payload
+        else { return nil }
+        return report
     }
 
     /// The projection is of the status's schedule, was read on `today` (its own `localDate`) and lists
@@ -152,10 +175,12 @@ public enum StatusCLI {
 
     /// What to print and the exit code: stdout text (or JSON), or one stderr line when unreadable.
     /// `acknowledgedSlot` is the app's stored problem slot already opened (`GlanceBuilder.acknowledgedSlotKey`),
-    /// so the CLI and the app agree on "Needs a look" (0.6.3).
-    public static func render(_ snapshot: Snapshot?, json: Bool, now: Date, acknowledgedSlot: String? = nil) -> (
-        stdout: Data, stderr: String?, code: Int32
-    ) {
+    /// so the CLI and the app agree on "Needs a look" (0.6.3). `reviewed` is the app's stored reviewed
+    /// sends: only the others count (app 0.7.2).
+    public static func render(
+        _ snapshot: Snapshot?, json: Bool, now: Date, acknowledgedSlot: String? = nil,
+        reviewed: ReviewedSends = ReviewedSends()
+    ) -> (stdout: Data, stderr: String?, code: Int32) {
         guard let snapshot else { return (Data(), Self.unreadableMessage, Self.exitUnreadable) }
         guard let projection = snapshot.projection else {
             return (Data(), Self.scheduleUnreadableMessage, Self.exitUnreadable)
@@ -172,26 +197,27 @@ public enum StatusCLI {
             status: status, today: today, observedAt: snapshot.observedAt,
             // A malformed stored value never hides a problem.
             acknowledgedSlot: acknowledgedSlot.flatMap { Self.isSlot($0) ? $0 : nil },
-            runs: Self.runs(status: status, projection: projection, today: today))
+            runs: Self.runs(status: status, projection: projection, today: today),
+            history: snapshot.history?.rows ?? [])
         let code = Self.exitCode(
             glance: glance, health: Self.health(status, observedAt: snapshot.observedAt, now: now),
-            unresolved: status.unresolved.count)
+            unresolved: reviewed.visible(status.unresolved).count)
         let output =
             json
             ? Self.json(
                 status: status, glance: glance, projection: projection, now: now,
-                observedAt: snapshot.observedAt)
+                observedAt: snapshot.observedAt, history: snapshot.history, reviewed: reviewed)
             : Data(
                 Self.text(
                     status: status, glance: glance, projection: projection, now: now,
-                    observedAt: snapshot.observedAt
+                    observedAt: snapshot.observedAt, history: snapshot.history, reviewed: reviewed
                 )
                 .utf8)
         return (output + Data("\n".utf8), nil, code)
     }
 
-    /// 0 all good; 1 something needs attention (including unresolved sends); 2 nothing could be read
-    /// (no glance).
+    /// 0 all good; 1 something needs attention (including unreviewed unresolved sends); 2 nothing could
+    /// be read (no glance).
     public static func exitCode(glance: Glance?, health: [HealthRow], unresolved: Int = 0) -> Int32 {
         guard let glance else { return Self.exitUnreadable }
         let good: Set<GlanceState> = [.scheduled, .running]
@@ -200,12 +226,15 @@ public enum StatusCLI {
     }
 
     public static func report(
-        status: EngineStatus, glance: Glance, projection: ScheduleProjection?, now: Date, observedAt: Int? = nil
+        status: EngineStatus, glance: Glance, projection: ScheduleProjection?, now: Date, observedAt: Int? = nil,
+        history: HistoryReport? = nil, reviewed: ReviewedSends = ReviewedSends()
     ) -> Report {
         let zone = status.schedule.zone
         let nowMs = Int((now.timeIntervalSince1970 * 1000).rounded())
         let fields = Fields.make(
-            status: status, glance: glance, projection: projection, now: now, observedAt: observedAt)
+            status: status, glance: glance, projection: projection, now: now, observedAt: observedAt,
+            history: history)
+        let unresolved = reviewed.visible(status.unresolved).count
         let accounts = status.accounts.enumerated().map { index, account in
             Report.Account(
                 label: "Account \(index + 1)", state: Self.accountState(account, now: nowMs),
@@ -217,20 +246,24 @@ public enum StatusCLI {
         let stamp = ISO8601DateFormatter()
         stamp.formatOptions = [.withInternetDateTime]
         return Report(
-            verdict: Self.verdict(glance, fields: fields, status: status, observedAt: observedAt),
+            verdict: Self.verdict(
+                glance, fields: fields, status: status, observedAt: observedAt, unresolved: unresolved,
+                history: history?.rows ?? []),
             state: glance.state.rawValue, next: Self.next(status, fields: fields, now: now),
             today: fields.today.map { Report.Time(time: $0.shown, mark: $0.kind.rawValue) }, health: checks,
             accounts: accounts,
             checkedAt: stamp.string(from: now),
-            unresolvedSends: status.unresolved.isEmpty ? nil : status.unresolved.count,
+            unresolvedSends: unresolved == 0 ? nil : unresolved,
             unresolvedTruncated: status.unresolvedTruncated == true ? true : nil)
     }
 
     public static func text(
-        status: EngineStatus, glance: Glance, projection: ScheduleProjection?, now: Date, observedAt: Int? = nil
+        status: EngineStatus, glance: Glance, projection: ScheduleProjection?, now: Date, observedAt: Int? = nil,
+        history: HistoryReport? = nil, reviewed: ReviewedSends = ReviewedSends()
     ) -> String {
         let report = Self.report(
-            status: status, glance: glance, projection: projection, now: now, observedAt: observedAt)
+            status: status, glance: glance, projection: projection, now: now, observedAt: observedAt,
+            history: history, reviewed: reviewed)
         let marks = report.today.map { TodayMark(time: $0.time, kind: TodayMark.Kind(rawValue: $0.mark) ?? .upcoming) }
         let day = Self.observedDay(status: status, observedAt: observedAt, now: now)
         let available = projection.map { Self.paired(projection: $0, status: status, today: day) } ?? false
@@ -249,12 +282,14 @@ public enum StatusCLI {
     }
 
     public static func json(
-        status: EngineStatus, glance: Glance, projection: ScheduleProjection?, now: Date, observedAt: Int? = nil
+        status: EngineStatus, glance: Glance, projection: ScheduleProjection?, now: Date, observedAt: Int? = nil,
+        history: HistoryReport? = nil, reviewed: ReviewedSends = ReviewedSends()
     ) -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let report = Self.report(
-            status: status, glance: glance, projection: projection, now: now, observedAt: observedAt)
+            status: status, glance: glance, projection: projection, now: now, observedAt: observedAt,
+            history: history, reviewed: reviewed)
         return (try? encoder.encode(report)) ?? Data("{}".utf8)
     }
 
@@ -324,8 +359,10 @@ public enum StatusCLI {
         /// The minute each slot runs, from a paired projection only (`StatusCLI.runs`).
         let runs: RunTimes
 
+        /// `history` is the CLI's `history` read; without it Today comes from status alone.
         static func make(
-            status: EngineStatus, glance: Glance, projection: ScheduleProjection?, now: Date, observedAt: Int? = nil
+            status: EngineStatus, glance: Glance, projection: ScheduleProjection?, now: Date, observedAt: Int? = nil,
+            history: HistoryReport? = nil
         ) -> Fields {
             let zone = status.schedule.zone
             let date = StatusCLI.observedDay(status: status, observedAt: observedAt, now: now)
@@ -338,7 +375,13 @@ public enum StatusCLI {
                 due = Countdown.date(of: next, zone: zone)
             }
             let nowMs = Int((now.timeIntervalSince1970 * 1000).rounded())
-            let week = date.flatMap { WeekSummary.make(today: $0, status: status, history: []).last }
+            // The window's input: the history rows and their truncated flag, so a cut list keeps the oldest
+            // batch at "?" here too.
+            let week = date.flatMap {
+                WeekSummary.make(
+                    today: $0, status: status, history: history?.rows ?? [], truncated: history?.truncated == true
+                ).last
+            }
             let available = projection.map { StatusCLI.paired(projection: $0, status: status, today: date) } ?? false
             let admissions = projection?.days.first { $0.date == date }?.admissions ?? []
             let marks = TodayMark.make(
@@ -355,15 +398,18 @@ public enum StatusCLI {
     }
 
     /// The verdict, rebuilt from the checked fields: the glance supplies only which kind of headline
-    /// it is; a fixed headline is kept, and anything else prints "unknown".
-    static func verdict(_ glance: Glance, fields: Fields, status: EngineStatus, observedAt: Int?) -> String {
+    /// it is; a fixed headline is kept, and anything else prints "unknown". `unresolved` counts only
+    /// sends not marked reviewed; `history` is the rows the glance was built with.
+    static func verdict(
+        _ glance: Glance, fields: Fields, status: EngineStatus, observedAt: Int?, unresolved: Int,
+        history: [HistoryEntry] = []
+    ) -> String {
         let headline = glance.headline
-        // Unresolved sends are never "All good" (060-FIX5 item 5), nor a scheduled "Next …": count only,
-        // no IDs.
+        // Unreviewed unresolved sends are never "All good" (060-FIX5 item 5), nor a scheduled "Next …":
+        // count only, no IDs.
         let missedToday = glance.state == .scheduled && headline.hasPrefix(GlanceBuilder.nextPrefix)
         if headline.hasPrefix(Self.scheduledPrefix) || missedToday,
-            let attention = Self.unresolvedVerdict(
-                status.unresolved.count, truncated: status.unresolvedTruncated == true)
+            let attention = Self.unresolvedVerdict(unresolved, truncated: status.unresolvedTruncated == true)
         {
             return attention
         }
@@ -382,7 +428,10 @@ public enum StatusCLI {
             return Self.scheduledPrefix + (fields.nextWhen ?? Self.unknownText) + suffix
         }
         // A problem today already opened (0.7.0): the count comes from the status, never the glance text.
-        if missedToday, let note = GlanceBuilder.todayNote(GlanceBuilder.problemsToday(status, today: fields.date)) {
+        if missedToday,
+            let note = GlanceBuilder.todayNote(
+                GlanceBuilder.problemsToday(status, today: fields.date, history: history))
+        {
             let suffix = fields.zone.map { " (\($0))" }.flatMap { headline.hasSuffix($0) ? $0 : nil } ?? ""
             return GlanceBuilder.nextPrefix + (fields.nextWhen ?? Self.unknownText) + suffix + " · " + note
         }

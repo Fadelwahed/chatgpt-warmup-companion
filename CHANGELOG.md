@@ -8,6 +8,11 @@ Notable changes to Warm-up: the engine (`warmup.mjs` and its modules) and the me
 - `scripts/schedule-wakes.sh` books a one-time macOS wake 5 seconds into each warm-up of the next 7 days (one password prompt; `--dry-run`, `--cancel`), replacing only the wakes it booked before.
 - `scripts/wake-test.sh` tests whether a booked wake with the lid closed stays awake long enough for a warm-up: four `waketest` wakes, a detached watcher, and `--report` against `pmset -g log` (`--dry-run`, `--cancel`, `--self-test`).
 
+### App 0.7.2
+
+- **Advice that matches what happened.** A missed time's advice, Schedule's wake line and Help say a booked wake needs the lid open; with the lid closed on battery it may last only seconds. The week's cause line says "at least N while the Mac was recorded asleep". Help says where to look when the menu-bar icon is missing.
+- **`--status` agrees with the window.** Sends marked reviewed in the app no longer count in `--status` and `--json` (verdict, "Sends without a result" line, `unresolvedSends`, exit code); `unresolvedSends` now means unreviewed sends. The CLI also reads the last eight days of `history`, so Today's marks and the headline match the window; if that read fails it falls back to status alone.
+
 ### App 0.7.1
 
 - **Date pickers.** The time-off and start-date pickers show the day in words beside them ("Fri 27 Nov"); the system field itself prints digits only.

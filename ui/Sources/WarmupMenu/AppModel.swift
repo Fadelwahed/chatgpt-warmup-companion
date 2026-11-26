@@ -455,15 +455,11 @@ final class AppModel: ObservableObject {
         return self.sleepJournal.explanation(admissionAt: at, zone: zone)
     }
 
-    /// Ledger slots whose recorded minute this app recorded the Mac asleep through, for the week's cause line.
+    /// "Nothing ran" ledger slots whose recorded minute this app recorded the Mac asleep through, for the
+    /// week's cause line (`SleepSlots`).
     func asleepSlots(_ status: EngineStatus) -> Set<String> {
-        Set(
-            status.slotLedger.compactMap { row in
-                guard let at = LedgerInstant.admissionAt(row),
-                    self.sleepJournal.asleep(from: at, to: at + 60_000) != nil
-                else { return nil }
-                return row.slot
-            })
+        let journal = self.sleepJournal
+        return SleepSlots.make(ledger: status.slotLedger) { journal.asleep(from: $0, to: $1) != nil }
     }
 
     /// A missed time's lines (what happened, now, what to do) against the current status; none without one.

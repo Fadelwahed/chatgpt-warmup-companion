@@ -143,6 +143,31 @@ import Testing
         // `text(zone:)` is the copied report: it keeps full dates and cause codes on purpose.
         texts += [report.headline, report.readTime(zone: "Asia/Gaza")]
         texts += report.details + week.map(\.spoken)
+        // The week's cause line with its "at least N while asleep" bracket (work order 137).
+        let missed = try Self.status("status-paused") {
+            $0["slotLedger"] = [
+                [
+                    "slot": "2026-11-11T13:00", "admission": "13:00", "cause": "no_tick_between", "zone": "Asia/Gaza",
+                    "at": Self.eight,
+                ]
+            ]
+        }
+        let missedWeek = WeekSummary.make(today: today, status: missed, history: [])
+        let causeLine = try #require(
+            WeekReport.make(
+                week: missedWeek, status: missed, history: [], truncated: false, asOf: Self.eight,
+                asleepSlots: ["2026-11-11T13:00"]
+            ).causeLine)
+        #expect(causeLine.contains("at least 1 while"))
+        texts.append(causeLine)
+        // Work order 137's new sentences: the miss advice, the wake caption and Help.
+        texts += MissExplanation.lines(
+            cause: "no_tick_between", compatibility: "ready", scheduleEnabled: true, clockHeld: false, asleepNote: nil)
+        texts += [
+            ScheduleWakeText.caption(
+                plan: WakePlan(bySlot: [:], lastBookedDay: "2026-12-02", hasRepeating: false), scheduleEnabled: true)
+        ].compactMap { $0 }
+        texts += HelpText.sections.flatMap { [$0.heading, $0.body] }
         // Slot detail.
         for name in ["slot-admitted", "slot-uncertain", "slot-unobserved", "slot-no-tick"] {
             let result = try #require(

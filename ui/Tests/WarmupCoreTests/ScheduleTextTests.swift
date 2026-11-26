@@ -173,6 +173,22 @@ import Testing
         #expect(ScheduleRowText.todayOnly(admission: added, projection: projection, now: later) == nil)
         #expect(ScheduleRowText.todayOnly(admission: added, projection: nil, now: now) == nil)
     }
+
+    /// Work order 137: the lid caption sits only under the "Wakes booked through" line.
+    @Test func wakeCaptionOnlyWithTheBookedThroughLine() {
+        let caption = "A booked wake needs the lid open, or it may last only seconds."
+        let booked = WakePlan(bySlot: [:], lastBookedDay: "2026-12-02", hasRepeating: false)
+        #expect(ScheduleWakeText.summary(plan: booked, scheduleEnabled: true) == "Wakes booked through Wed 2 Dec.")
+        #expect(ScheduleWakeText.caption(plan: booked, scheduleEnabled: true) == caption)
+        // No wake line (paused or unknown): no caption.
+        #expect(ScheduleWakeText.caption(plan: booked, scheduleEnabled: false) == nil)
+        #expect(ScheduleWakeText.caption(plan: .unknown, scheduleEnabled: true) == nil)
+        // Another wake line: no caption.
+        let repeating = WakePlan(bySlot: ["a": .ready(wakeAt: "07:55")], lastBookedDay: nil, hasRepeating: true)
+        #expect(ScheduleWakeText.caption(plan: repeating, scheduleEnabled: true) == nil)
+        let empty = WakePlan(bySlot: ["a": .notScheduled], lastBookedDay: nil, hasRepeating: false)
+        #expect(ScheduleWakeText.caption(plan: empty, scheduleEnabled: true) == nil)
+    }
 }
 
 /// 060-FIX6 item 5: "Today" names only the current date in the schedule zone.

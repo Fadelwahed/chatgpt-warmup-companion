@@ -179,6 +179,13 @@ public enum ScheduleWakeText {
         }
         return "No wakes booked. A warm-up is missed if the Mac is asleep at its time."
     }
+
+    /// The secondary line under "Wakes booked through …" only (work order 137): a booked wake with the
+    /// lid closed on battery may last seconds. Nil whenever that line is not shown.
+    public static func caption(plan: WakePlan, scheduleEnabled: Bool) -> String? {
+        guard plan.isKnown, scheduleEnabled, plan.lastBookedDay != nil else { return nil }
+        return "A booked wake needs the lid open, or it may last only seconds."
+    }
 }
 
 /// Future days that only repeat the recurring times fold to one line each (X6).

@@ -263,8 +263,8 @@ public enum GlanceBuilder {
 
     /// Today's recorded problems: not-admitted ledger rows, stopped batches and the latest finished
     /// batch, each dated `today`. Status keeps only the latest batch, so the app passes its loaded
-    /// `history` to keep an earlier batch that finished with a problem; the CLI reads none. None when
-    /// `today` is unknown.
+    /// `history` to keep an earlier batch that finished with a problem; the CLI passes its own `history`
+    /// read (app 0.7.2), or none when that read failed. None when `today` is unknown.
     public static func problemsToday(
         _ status: EngineStatus, today: String?, history: [HistoryEntry] = []
     ) -> [SlotProblem] {

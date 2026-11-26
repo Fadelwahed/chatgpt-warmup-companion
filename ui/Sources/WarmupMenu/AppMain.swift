@@ -90,8 +90,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// `WarmupMenu --status` / `--json`: one read-only `status` and `schedule inspect` through the stored
-/// binding, printed without IDs, paths or nicknames. Exit 0 all good, 1 needs attention, 2 unreadable.
+/// `WarmupMenu --status` / `--json`: read-only `status`, `schedule inspect` and `history` through the
+/// stored binding, printed without IDs, paths or nicknames. Exit 0 all good, 1 needs attention, 2 unreadable.
 enum StatusCommand {
     static func run(json: Bool) -> Int32 {
         guard let store = BindingStore.defaultStore(), let binding = try? store.load(),
@@ -107,7 +107,11 @@ enum StatusCommand {
         semaphore.wait()
         // Read-only: the same app-domain value the menu uses, so both say "Needs a look" alike.
         let seen = UserDefaults.standard.string(forKey: GlanceBuilder.acknowledgedSlotKey)
-        return self.finish(StatusCLI.render(snapshot, json: json, now: Date(), acknowledgedSlot: seen))
+        // Read-only: the app's reviewed sends from the same private store; a missing or unreadable file
+        // loads as nothing reviewed. The CLI never writes it.
+        let reviewed = ReviewedSendsStore(directory: store.directory).load()
+        return self.finish(
+            StatusCLI.render(snapshot, json: json, now: Date(), acknowledgedSlot: seen, reviewed: reviewed))
     }
 
     private static func finish(_ output: (stdout: Data, stderr: String?, code: Int32)) -> Int32 {

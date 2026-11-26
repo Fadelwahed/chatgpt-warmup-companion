@@ -238,15 +238,16 @@ public struct WeekReport: Sendable, Equatable {
     static let ledgerLimit = 50
     static let noTickCause = "no_tick_between"
 
-    /// "14 missed: nothing ran at that minute ×10 (7 while the Mac was recorded asleep), Router needed a
-    /// review ×4." States what was recorded; never that sleep caused a miss. Nil when nothing was missed.
+    /// "14 missed: nothing ran at that minute ×10 (at least 7 while the Mac was recorded asleep), Router
+    /// needed a review ×4." States what was recorded; never that sleep caused a miss. The sleep journal
+    /// covers only time the app ran, so the count is a lower bound. Nil when nothing was missed.
     public var causeLine: String? {
         guard !self.causes.isEmpty else { return nil }
         let total = self.causes.map(\.count).reduce(0, +)
         let parts = self.causes.map { cause in
             let asleep =
                 cause.cause == Self.noTickCause && self.asleepNoTick > 0
-                ? " (\(self.asleepNoTick) while the Mac was recorded asleep)" : ""
+                ? " (at least \(self.asleepNoTick) while the Mac was recorded asleep)" : ""
             return "\(Wording.reason(cause.cause)) ×\(cause.count)\(asleep)"
         }
         return "\(total) missed: " + parts.joined(separator: ", ") + "."

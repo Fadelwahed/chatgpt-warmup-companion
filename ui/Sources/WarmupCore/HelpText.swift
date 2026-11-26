@@ -34,7 +34,9 @@ public enum HelpText {
                 heading: "When warm-ups run",
                 body: "The Mac must be awake at each time. A time that passes while the Mac is asleep or off is "
                     + "missed, and Warm-up never sends it late. Schedule shows whether a wake is booked for each coming "
-                    + "time. The schedule-wakes script in the Warm-up repository books them for 7 days at a time; "
+                    + "time. A booked wake works with the lid open. With the lid closed on battery, macOS may wake "
+                    + "for only a few seconds, which is not enough. The schedule-wakes script in the Warm-up "
+                    + "repository books them for 7 days at a time; "
                     + "with alerts on, Warm-up tells you the day before they run out."
             ),
             (
@@ -58,7 +60,8 @@ public enum HelpText {
                     + "scheduling was first seen paused or Router's compatibility found blocked. Copied summaries "
                     + "and WarmupMenu --status and --json "
                     + "never include account names, IDs or email addresses; the engine's own commands can. The "
-                    + "app makes no network requests of its own."
+                    + "app makes no network requests of its own. If the Warm-up icon is missing from the menu bar, "
+                    + "look in the hidden section, or in System Settings under Menu Bar."
             ),
         ]
     }

@@ -310,8 +310,11 @@ import Testing
         #expect(asleep.asleepNoTick == 2)
         #expect(
             asleep.causeLine
-                == "4 missed: nothing ran at that minute ×3 (2 while the Mac was recorded asleep), Router needed a review ×1."
+                == "4 missed: nothing ran at that minute ×3 (at least 2 while the Mac was recorded asleep), Router "
+                + "needed a review ×1."
         )
+        // Work order 137: the sleep journal covers only time the app ran, so the count is a lower bound.
+        #expect(asleep.causeLine?.contains("(at least 2 while") == true)
         let blockedAsleep = report(
             try ledger([("2026-11-11T13:00", "compatibility_blocked")]), asleep: ["2026-11-11T13:00"])
         #expect(blockedAsleep.causeLine == "1 missed: Router needed a review ×1.")

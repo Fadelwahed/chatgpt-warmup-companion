@@ -405,6 +405,7 @@ import Testing
                 #!/bin/sh
                 case "$*" in
                   *"schedule inspect"*) kind=inspect ;;
+                  *history*) kind=history; echo "$*" > "\(self.root)/args-history" ;;
                   *status*) kind=status ;;
                   *) kind=other ;;
                 esac
@@ -826,6 +827,246 @@ extension StatusCommandLinePairing {
         #expect(report.verdict == "Needs attention: 2 or more sends without a result")
         #expect(StatusCLI.unresolvedVerdict(1, truncated: true) == "Needs attention: 1 or more sends without a result")
         #expect(StatusCLI.unresolvedVerdict(2) == "Needs attention: 2 sends without a result")
+    }
+}
+
+/// Work order 137 Part B: `--status` counts only sends not marked reviewed in the app (D1), and reads
+/// history so Today's marks and the headline match the window (D2).
+extension StatusCommandLinePairing {
+    static let unresolvedBase = 1_794_463_200_000
+
+    /// status-enabled with `count` possible sends one second apart.
+    static func unresolved(_ count: Int, truncated: Bool = false) throws -> EngineStatus {
+        let rows: [[String: Any]] = (0..<count).map {
+            ["enrollmentId": "enr_0\($0 % 2 + 1)", "slot": "2026-11-12T08:00", "at": Self.unresolvedBase + $0 * 1_000]
+        }
+        return try #require(
+            ReplyValidator.payload(
+                EngineStatus.self,
+                from: try Fixture.output("status-enabled") {
+                    $0["unresolved"] = rows
+                    if truncated { $0["unresolvedTruncated"] = true }
+                }))
+    }
+
+    static func snapshot(_ status: EngineStatus, history: HistoryReport? = nil) throws -> StatusCLI.Snapshot {
+        let projection = try #require(
+            ReplyValidator.payload(ScheduleProjection.self, from: try Fixture.output("projection-default")))
+        return StatusCLI.Snapshot(
+            status: status, observedAt: StatusCommandLine.observedNow, projection: projection, history: history)
+    }
+
+    static func reviewing(_ status: EngineStatus, except kept: Int = 0) -> ReviewedSends {
+        ReviewedSends().marking(Array(status.unresolved.dropFirst(kept)))
+    }
+
+    static func lines(_ rendered: (stdout: Data, stderr: String?, code: Int32)) -> [String] {
+        String(decoding: rendered.stdout, as: UTF8.self).split(separator: "\n").map(String.init)
+    }
+
+    static func keys(_ rendered: (stdout: Data, stderr: String?, code: Int32)) throws -> Set<String> {
+        Set(try #require(try JSONSerialization.jsonObject(with: rendered.stdout) as? [String: Any]).keys)
+    }
+
+    /// (a) Every send reviewed: the glance's own headline, no line, no JSON count, exit 0.
+    @Test func allReviewedSendsLeaveTheGlanceHeadline() throws {
+        let status = try Self.unresolved(15)
+        let reviewed = Self.reviewing(status)
+        let clean = try Self.snapshot(try Self.unresolved(0))
+        let expected = Self.lines(StatusCLI.render(clean, json: false, now: StatusCommandLine.now)).first
+        let text = StatusCLI.render(
+            try Self.snapshot(status), json: false, now: StatusCommandLine.now, reviewed: reviewed)
+        #expect(text.code == 0)
+        #expect(Self.lines(text).first == expected)
+        #expect(expected?.hasPrefix("All good · next 08:00") == true)
+        #expect(!Self.lines(text).contains { $0.hasPrefix("Sends without a result") })
+        let json = StatusCLI.render(
+            try Self.snapshot(status), json: true, now: StatusCommandLine.now, reviewed: reviewed)
+        #expect(json.code == 0)
+        #expect(!(try Self.keys(json)).contains("unresolvedSends"))
+        #expect(try JSONDecoder().decode(StatusCLI.Report.self, from: json.stdout).verdict == expected)
+    }
+
+    /// (b) Two of fifteen not reviewed: those two need attention.
+    @Test func onlyUnreviewedSendsNeedAttention() throws {
+        let status = try Self.unresolved(15)
+        let reviewed = Self.reviewing(status, except: 2)
+        let text = StatusCLI.render(
+            try Self.snapshot(status), json: false, now: StatusCommandLine.now, reviewed: reviewed)
+        #expect(text.code == 1)
+        #expect(Self.lines(text).first == "Needs attention: 2 sends without a result")
+        #expect(Self.lines(text).contains("Sends without a result: 2"))
+        let json = StatusCLI.render(
+            try Self.snapshot(status), json: true, now: StatusCommandLine.now, reviewed: reviewed)
+        #expect(json.code == 1)
+        #expect(try JSONDecoder().decode(StatusCLI.Report.self, from: json.stdout).unresolvedSends == 2)
+        // Nothing reviewed: all fifteen, as before.
+        let none = StatusCLI.render(try Self.snapshot(status), json: false, now: StatusCommandLine.now)
+        #expect(Self.lines(none).first == "Needs attention: 15 sends without a result")
+    }
+
+    /// (c) A cut list keeps "or more" on what is left; with nothing left only the JSON flag stays.
+    @Test func aCutListKeepsOrMoreOnUnreviewedSends() throws {
+        let status = try Self.unresolved(15, truncated: true)
+        let some = Self.reviewing(status, except: 2)
+        let text = StatusCLI.render(try Self.snapshot(status), json: false, now: StatusCommandLine.now, reviewed: some)
+        #expect(text.code == 1)
+        #expect(Self.lines(text).first == "Needs attention: 2 or more sends without a result")
+        #expect(Self.lines(text).contains("Sends without a result: 2 or more"))
+        let all = Self.reviewing(status)
+        let quiet = StatusCLI.render(try Self.snapshot(status), json: false, now: StatusCommandLine.now, reviewed: all)
+        #expect(quiet.code == 0)
+        #expect(Self.lines(quiet).first?.hasPrefix("All good · next 08:00") == true)
+        #expect(!Self.lines(quiet).contains { $0.hasPrefix("Sends without a result") })
+        let json = StatusCLI.render(try Self.snapshot(status), json: true, now: StatusCommandLine.now, reviewed: all)
+        #expect(json.code == 0)
+        let keys = try Self.keys(json)
+        #expect(!keys.contains("unresolvedSends"))
+        #expect(try JSONDecoder().decode(StatusCLI.Report.self, from: json.stdout).unresolvedTruncated == true)
+    }
+
+    /// (d) A reviewed file the store cannot read counts as nothing reviewed.
+    @Test func anUnreadableReviewedFileCountsAsNothingReviewed() throws {
+        let base = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "warmup-reviewed-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: base, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(at: base) }
+        let store = ReviewedSendsStore(directory: base)
+        FileManager.default.createFile(
+            atPath: store.file.path, contents: Data("not json".utf8), attributes: [.posixPermissions: 0o600])
+        let unreadable = store.load()
+        let missing = ReviewedSendsStore(directory: base.appendingPathComponent("absent")).load()
+        let status = try Self.unresolved(15)
+        let expected = StatusCLI.render(try Self.snapshot(status), json: false, now: StatusCommandLine.now)
+        for reviewed in [unreadable, missing] {
+            #expect(reviewed == ReviewedSends())
+            let rendered = StatusCLI.render(
+                try Self.snapshot(status), json: false, now: StatusCommandLine.now, reviewed: reviewed)
+            #expect(rendered.stdout == expected.stdout)
+            #expect(rendered.code == 1)
+        }
+    }
+
+    /// 14:00 on 12 Nov in Asia/Gaza, after the 13:00 batch finished well; 08:00 is only in history.
+    static let at1400 = 1_794_484_800_000
+
+    static func afternoon() throws -> EngineStatus {
+        try #require(
+            ReplyValidator.payload(
+                EngineStatus.self,
+                from: try Fixture.output("status-enabled") {
+                    $0["observedAt"] = "2026-11-12T12:00:00.000Z"
+                    $0["lastSlotOutcome"] = [
+                        "slot": "2026-11-12T13:00", "zone": "Asia/Gaza", "outcome": "success", "at": 1_794_481_205_000,
+                    ]
+                    $0["next"] = [
+                        "slot": "2026-11-12T18:00", "admission": "18:00", "date": "2026-11-12", "at": 1_794_499_200_000,
+                    ]
+                }))
+    }
+
+    static func afternoonSnapshot(_ status: EngineStatus, history: HistoryReport?) throws -> StatusCLI.Snapshot {
+        let projection = try #require(
+            ReplyValidator.payload(ScheduleProjection.self, from: try Fixture.output("projection-default")))
+        return StatusCLI.Snapshot(status: status, observedAt: Self.at1400, projection: projection, history: history)
+    }
+
+    static func todayLine(_ snapshot: StatusCLI.Snapshot) -> String? {
+        let now = Date(timeIntervalSince1970: Double(Self.at1400) / 1000)
+        let rendered = StatusCLI.render(snapshot, json: false, now: now)
+        return Self.lines(rendered).first { $0.hasPrefix("Today: ") }
+    }
+
+    /// (e) History that confirms 08:00 gives ✓ 08:00, as in the window; without history, as before.
+    @Test func todayUsesHistoryWhenItWasRead() throws {
+        let status = try Self.afternoon()
+        let history = try #require(ReplyValidator.payload(HistoryReport.self, from: try Fixture.output("history")))
+        let confirmed = TodayMark.Kind.confirmed.glyph
+        let uncertain = TodayMark.Kind.uncertain.glyph
+        let read = try #require(Self.todayLine(try Self.afternoonSnapshot(status, history: history)))
+        #expect(read.contains("\(confirmed) 08:00"))
+        #expect(read.contains("\(confirmed) 13:00"))
+        let unread = try #require(Self.todayLine(try Self.afternoonSnapshot(status, history: nil)))
+        #expect(unread.contains("\(uncertain) 08:00"))
+        #expect(unread.contains("\(confirmed) 13:00"))
+        // The same marks the window builds from the same rows.
+        let week = WeekSummary.make(today: "2026-11-12", status: status, history: history.rows)
+        let projection = try #require(
+            ReplyValidator.payload(ScheduleProjection.self, from: try Fixture.output("projection-default")))
+        let window = try #require(
+            TodayMark.marks(projection: projection, status: status, week: week, today: "2026-11-12", now: Self.at1400))
+        #expect(read == "Today: " + window.map { "\($0.kind.glyph) \($0.shown)" }.joined(separator: " "))
+    }
+
+    /// A cut history turns the oldest ✓ into ?, exactly as in the window.
+    @Test func aCutHistoryIsNotConfirmed() throws {
+        let status = try Self.afternoon()
+        let rows = try #require(ReplyValidator.payload(HistoryReport.self, from: try Fixture.output("history"))).rows
+        let cut = HistoryReport(rows: rows, truncated: true)
+        let line = try #require(Self.todayLine(try Self.afternoonSnapshot(status, history: cut)))
+        #expect(line.contains("\(TodayMark.Kind.uncertain.glyph) 08:00"))
+        // The same rows uncut confirm it: only the cut flag makes the difference.
+        let whole = HistoryReport(rows: rows, truncated: false)
+        let uncut = try #require(Self.todayLine(try Self.afternoonSnapshot(status, history: whole)))
+        #expect(uncut.contains("\(TodayMark.Kind.confirmed.glyph) 08:00"))
+    }
+
+    /// Ruling 4: an earlier failed batch today in history gives the window's headline.
+    @Test func anEarlierFailedBatchInHistoryGivesTheWindowsHeadline() throws {
+        let status = try Self.afternoon()
+        let failed = ["enr_01", "enr_02"].map {
+            HistoryEntry(
+                enrollmentId: $0, status: "failed", reason: "provider_error", mode: "scheduled",
+                slot: "2026-11-12T08:00", at: 1_794_463_205_000, dispatched: true, batchOutcome: "partial")
+        }
+        let history = HistoryReport(rows: failed, truncated: false)
+        let projection = try #require(
+            ReplyValidator.payload(ScheduleProjection.self, from: try Fixture.output("projection-default")))
+        let window = GlanceBuilder.make(
+            status: status, today: "2026-11-12", observedAt: Self.at1400,
+            runs: RunTimes.make(status: status, projection: projection), history: failed)
+        #expect(window.todayNote != nil)
+        let now = Date(timeIntervalSince1970: Double(Self.at1400) / 1000)
+        let read = StatusCLI.render(try Self.afternoonSnapshot(status, history: history), json: false, now: now)
+        #expect(Self.lines(read).first == window.headlineWithNote)
+        #expect(Self.lines(read).first?.hasSuffix("· 1 not confirmed today") == true)
+        // Without history the CLI keeps today's headline.
+        let unread = StatusCLI.render(try Self.afternoonSnapshot(status, history: nil), json: false, now: now)
+        #expect(Self.lines(unread).first?.hasPrefix("All good · next 18:00") == true)
+    }
+
+    /// The history read happens only after a matching pair, from the observation's own time; a failed
+    /// history read leaves none and the command still succeeds.
+    @Test func historyIsReadAfterAPairFromTheObservationTime() async throws {
+        let engine = try Engine()
+        try engine.reply("status", 1, fixture: "status-enabled", revision: 1)
+        try engine.reply("inspect", 1, fixture: "projection-default", revision: 1)
+        try engine.reply("history", 1, fixture: "history", revision: 1)
+        let snapshot = await StatusCLI.read(client: engine.client())
+        #expect(snapshot?.history?.rows.count == 6)
+        #expect(engine.count("history") == 1)
+        #expect(engine.count("other") == 0)
+        let args = (try? String(contentsOfFile: "\(engine.root)/args-history", encoding: .utf8)) ?? ""
+        // status-enabled was observed at 2026-11-12T04:00Z: eight days earlier.
+        #expect(args.contains("--since 2026-11-04T04:00:00.000Z"))
+        // No history reply: none, and the command still renders.
+        let failing = try Engine()
+        try failing.reply("status", 1, fixture: "status-enabled", revision: 1)
+        try failing.reply("inspect", 1, fixture: "projection-default", revision: 1)
+        let without = await StatusCLI.read(client: failing.client())
+        #expect(without?.projection != nil)
+        #expect(without?.history == nil)
+        #expect(StatusCLI.render(without, json: false, now: StatusCommandLine.now).code == 0)
+        #expect(failing.count("history") == 1)
+        // A pair that never matches reads no history.
+        let unpaired = try Engine()
+        for n in [1, 2] {
+            try unpaired.reply("status", n, fixture: "status-enabled", revision: 1)
+            try unpaired.reply("inspect", n, fixture: "projection-default", revision: 2)
+        }
+        _ = await StatusCLI.read(client: unpaired.client())
+        #expect(unpaired.count("history") == 0)
     }
 }
 

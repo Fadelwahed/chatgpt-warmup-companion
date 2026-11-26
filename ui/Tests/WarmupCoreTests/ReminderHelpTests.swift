@@ -154,10 +154,29 @@ import Testing
         let section = try #require(HelpText.sections.first { $0.heading == "When warm-ups run" })
         #expect(
             section.body.hasSuffix(
-                "Schedule shows whether a wake is booked for each coming time. The schedule-wakes script in the "
+                "Schedule shows whether a wake is booked for each coming time. " + Self.lidSentence
+                    + " The schedule-wakes script in the "
                     + "Warm-up repository books them for 7 days at a time; with alerts on, Warm-up tells you the day "
                     + "before they run out."))
         #expect(!section.body.contains("Settings shows a command"))
+    }
+
+    static let lidSentence =
+        "A booked wake works with the lid open. With the lid closed on battery, macOS may wake for only a few "
+        + "seconds, which is not enough."
+    static let menuBarSentence =
+        "If the Warm-up icon is missing from the menu bar, look in the hidden section, or in System Settings under "
+        + "Menu Bar."
+
+    /// Work order 137: the lid sentence follows the booked-wakes sentence, "never sends it late" stays,
+    /// and the menu-bar hint closes the last section.
+    @Test func helpSaysABookedWakeNeedsTheLidOpenAndWhereTheIconHides() throws {
+        let section = try #require(HelpText.sections.first { $0.heading == "When warm-ups run" })
+        #expect(section.body.contains("never sends it late"))
+        #expect(section.body.contains("each coming time. " + Self.lidSentence))
+        let last = try #require(HelpText.sections.last)
+        #expect(last.heading == "What the app stores")
+        #expect(last.body.hasSuffix(Self.menuBarSentence))
     }
 
     @Test func helpHasSixSections() {

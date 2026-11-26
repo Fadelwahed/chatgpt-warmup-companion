@@ -1034,6 +1034,11 @@ struct SchedulePane: View {
                 plan: self.model.wakePlan, scheduleEnabled: projection.scheduleEnabled)
             {
                 Text(wakes).font(.callout).accessibilityLabel(wakes)
+                if let caption = ScheduleWakeText.caption(
+                    plan: self.model.wakePlan, scheduleEnabled: projection.scheduleEnabled)
+                {
+                    Text(caption).font(.caption).foregroundStyle(.secondary)
+                }
             }
             if let notice = projection.zoneNotice {
                 Label("Time zone changed from \(notice.previousZone) to \(notice.zone).", systemImage: "globe")

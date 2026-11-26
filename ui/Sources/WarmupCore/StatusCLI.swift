@@ -363,8 +363,10 @@ public enum StatusCLI {
     /// it is; a fixed headline is kept, and anything else prints "unknown".
     static func verdict(_ glance: Glance, fields: Fields, status: EngineStatus, observedAt: Int?) -> String {
         let headline = glance.headline
-        // Unresolved sends are never "All good" (060-FIX5 item 5): count only, no IDs.
-        if headline.hasPrefix(Self.scheduledPrefix),
+        // Unresolved sends are never "All good" (060-FIX5 item 5), nor a scheduled "Next …": count only,
+        // no IDs.
+        let missedToday = glance.state == .scheduled && headline.hasPrefix(GlanceBuilder.nextPrefix)
+        if headline.hasPrefix(Self.scheduledPrefix) || missedToday,
             let attention = Self.unresolvedVerdict(
                 status.unresolved.count, truncated: status.unresolvedTruncated == true)
         {
@@ -383,6 +385,11 @@ public enum StatusCLI {
             // The glance names the zone only when it is not the Mac's own.
             let suffix = fields.zone.map { " (\($0))" }.flatMap { headline.hasSuffix($0) ? $0 : nil } ?? ""
             return Self.scheduledPrefix + (fields.nextWhen ?? Self.unknownText) + suffix
+        }
+        // A problem today already opened (0.7.0): the count comes from the status, never the glance text.
+        if missedToday, let note = GlanceBuilder.todayNote(GlanceBuilder.problemsToday(status, today: fields.date)) {
+            let suffix = fields.zone.map { " (\($0))" }.flatMap { headline.hasSuffix($0) ? $0 : nil } ?? ""
+            return GlanceBuilder.nextPrefix + (fields.nextWhen ?? Self.unknownText) + suffix + " · " + note
         }
         if headline.hasPrefix(Self.checkInPrefix), let tick = status.lastTick, let observedAt, let zone = fields.zone {
             return HeartbeatCheck.headline(tick: tick, observedAt: observedAt, zone: zone)
@@ -411,6 +418,6 @@ public enum StatusCLI {
     ]
     static let runningPrefix = "Warming up: "
     static let problemPrefix = "Needs a look: "
-    static let scheduledPrefix = "All good · next "
+    static let scheduledPrefix = GlanceBuilder.scheduledPrefix
     static let checkInPrefix = "No check-in since "
 }

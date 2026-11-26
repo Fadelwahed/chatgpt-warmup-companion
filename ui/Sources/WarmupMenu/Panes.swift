@@ -655,7 +655,7 @@ private struct HealthSection: View {
         if let status = self.model.status {
             let rows = HealthCheck.rows(
                 status: status, observedAt: self.model.lastObservedAt, wake: self.model.wake,
-                nextLocalAdmission: self.model.nextLocalAdmission)
+                nextLocalAdmission: self.model.nextLocalAdmission, week: self.model.weekReport)
             let fine = HealthCheck.allFine(rows)
             Section {
                 DisclosureGroup(isExpanded: self.$expanded) {

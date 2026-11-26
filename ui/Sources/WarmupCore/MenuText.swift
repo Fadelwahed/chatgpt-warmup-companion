@@ -183,6 +183,23 @@ public enum MenuText {
         (marks.first { $0.kind == .upcoming } ?? marks.last)?.slot
     }
 
+    /// The menu header: the headline, the countdown while the next time is its subject, then today's
+    /// note: "Next 08:00 · in 4 h 57 min · 1 missed today", "All good · next 13:00 · in 2 h".
+    public static func header(glance: Glance, status: EngineStatus?, now: Date) -> String {
+        var title = glance.headline
+        if glance.state == .scheduled, let status, let next = status.next,
+            let due = Countdown.date(of: next, zone: status.schedule.zone)
+        {
+            title += " · \(Countdown.phrase(from: now, to: due))"
+        }
+        return glance.todayNote.map { "\(title) · \($0)" } ?? title
+    }
+
+    /// The menu-bar item's tooltip and spoken label: "Warm-up: Next 08:00 · 1 missed today".
+    public static func itemLabel(glance: Glance) -> String {
+        "Warm-up: \(glance.headlineWithNote)"
+    }
+
     /// The attention line, only while the latest problem is unseen; nil otherwise.
     public static func attention(glance: Glance) -> String? {
         glance.unseenProblemSlot == nil ? nil : glance.headline

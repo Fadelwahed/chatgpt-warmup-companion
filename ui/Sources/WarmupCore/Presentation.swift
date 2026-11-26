@@ -23,6 +23,9 @@ public enum GlanceState: String, Sendable, Equatable {
     public static let staleHeartbeatSymbol = "heart.slash"
     /// The latest slot had a problem the operator has not opened yet.
     public static let unseenProblemSymbol = "exclamationmark.circle"
+    /// Still scheduled, but a time today had a problem that was already opened. Neutral, never the
+    /// attention tint.
+    public static let todayProblemSymbol = "clock.badge.exclamationmark"
 }
 
 public struct Glance: Sendable, Equatable {
@@ -38,10 +41,14 @@ public struct Glance: Sendable, Equatable {
     public let unseenProblemSlot: String?
     /// Possible sends without a result, for the menu's attention line (never a hero note).
     public let unresolvedNote: String?
+    /// "1 missed today" or "2 not confirmed today" while scheduled after a problem today was opened;
+    /// nil otherwise.
+    public let todayNote: String?
 
     init(
         state: GlanceState, headline: String, lastOutcome: String?, lastOutcomeSlot: String?, notes: [String],
-        symbolName: String? = nil, unseenProblemSlot: String? = nil, unresolvedNote: String? = nil
+        symbolName: String? = nil, unseenProblemSlot: String? = nil, unresolvedNote: String? = nil,
+        todayNote: String? = nil
     ) {
         self.state = state
         self.headline = headline
@@ -51,6 +58,12 @@ public struct Glance: Sendable, Equatable {
         self.symbolName = symbolName ?? state.symbolName
         self.unseenProblemSlot = unseenProblemSlot
         self.unresolvedNote = unresolvedNote
+        self.todayNote = todayNote
+    }
+
+    /// The headline with today's note: "Next 08:00 · 1 missed today".
+    public var headlineWithNote: String {
+        self.todayNote.map { "\(self.headline) · \($0)" } ?? self.headline
     }
 }
 
@@ -154,7 +167,7 @@ public enum GlanceBuilder {
     /// `runs` names each slot at the minute it ran or runs (app 0.6.9); the labels stay the keys.
     public static func make(
         status: EngineStatus, today: String?, observedAt: Int? = nil, macZone: String? = TimeZone.current.identifier,
-        acknowledgedSlot: String? = nil, runs: RunTimes = .none
+        acknowledgedSlot: String? = nil, runs: RunTimes = .none, history: [HistoryEntry] = []
     ) -> Glance {
         let zone = status.schedule.zone
         let zoneSuffix = zone == macZone ? "" : " (\(zone))"
@@ -177,7 +190,7 @@ public enum GlanceBuilder {
             if let batch = status.activeBatch, batch.state == "running" { return (.running, "Warming up: \(runs.time(of: batch.slot) ?? String(batch.slot.suffix(5)))") }
             guard let next = status.next else { return (.noUpcoming, "No warm-up in the next 7 days") }
             let when = next.date == today ? next.admission : FriendlyTime.time(next.admission, on: next.date, today: today)
-            return (.scheduled, "All good · next \(when)\(zoneSuffix)")
+            return (.scheduled, Self.scheduledPrefix + when + zoneSuffix)
         }()
         // A stale heartbeat outranks the next-slot line, which then moves to the notes. No cause
         // is stated: the job, the Mac or the engine may each explain it.
@@ -199,6 +212,13 @@ public enum GlanceBuilder {
             headline = "Needs a look: \(FriendlyTime.slotShort(lastSlot, today: today, runs: runs))"
             unseen = lastSlot
         }
+        // A problem today that was already opened: the next time stays the subject, but not "All good".
+        var todayNote: String?
+        if state == .scheduled, let note = Self.todayNote(Self.problemsToday(status, today: today, history: history)) {
+            headline = Self.nextLine(headline)
+            symbol = GlanceState.todayProblemSymbol
+            todayNote = note
+        }
         // Engine 1.1 names what holds the work lock: the likeliest cause of a stopped heartbeat.
         if let lockNote = WorkLockCheck.note(status, observedAt: observedAt) {
             notes.insert(lockNote, at: state == .attention ? 0 : notes.count)
@@ -213,27 +233,58 @@ public enum GlanceBuilder {
         }
         return Glance(
             state: state, headline: headline, lastOutcome: last, lastOutcomeSlot: lastSlot, notes: notes, symbolName: symbol,
-            unseenProblemSlot: unseen, unresolvedNote: status.unresolved.isEmpty ? nil : UnresolvedText.line(status))
+            unseenProblemSlot: unseen, unresolvedNote: status.unresolved.isEmpty ? nil : UnresolvedText.line(status),
+            todayNote: todayNote)
     }
+
+    static let scheduledPrefix = "All good · next "
+    static let nextPrefix = "Next "
 
     /// "All good · next 13:00" becomes "Next 13:00" when another headline takes its place.
     static func nextLine(_ headline: String) -> String {
-        headline.hasPrefix("All good · next ") ? "Next " + headline.dropFirst("All good · next ".count) : headline
+        headline.hasPrefix(Self.scheduledPrefix)
+            ? Self.nextPrefix + headline.dropFirst(Self.scheduledPrefix.count) : headline
+    }
+
+    /// Today's recorded problems: not-admitted ledger rows, stopped batches and the latest finished
+    /// batch, each dated `today`. Status keeps only the latest batch, so the app passes its loaded
+    /// `history` to keep an earlier batch that finished with a problem; the CLI reads none. None when
+    /// `today` is unknown.
+    public static func problemsToday(
+        _ status: EngineStatus, today: String?, history: [HistoryEntry] = []
+    ) -> [SlotProblem] {
+        guard let today else { return [] }
+        return SlotProblem.from(status, history: history).filter { $0.slot.prefix(10) == today }
+    }
+
+    /// "1 missed today" when every problem is a time not admitted, else "2 not confirmed today"; nil
+    /// for none.
+    public static func todayNote(_ problems: [SlotProblem]) -> String? {
+        guard !problems.isEmpty else { return nil }
+        let missed = problems.allSatisfy {
+            if case .notAdmitted = $0.kind { return true }
+            return false
+        }
+        return "\(problems.count) \(missed ? "missed" : "not confirmed") today"
     }
 }
 
 /// The Overview hero says the next time once: "All good" as the headline, then "Next warm-up 13:00,
 /// in 2 h 15 min" below it. Other headlines stay as they are.
 public enum HeroText {
-    static let scheduledPrefix = "All good · next "
+    static let scheduledPrefix = GlanceBuilder.scheduledPrefix
 
+    /// "All good", or the headline with today's note ("Next 08:00 · 1 missed today").
     public static func headline(_ glance: Glance) -> String {
-        Self.when(glance) == nil ? glance.headline : "All good"
+        Self.when(glance) == nil ? glance.headlineWithNote : "All good"
     }
 
-    /// "Next warm-up 13:00, in 2 h 15 min" (or without the countdown), only while scheduled.
+    /// "Next warm-up 13:00, in 2 h 15 min" (or without the countdown), only while scheduled. When the
+    /// headline already names the next time ("Next 08:00 · 1 missed today"), the countdown alone.
     public static func next(_ glance: Glance, countdown: String?) -> String? {
-        guard let when = Self.when(glance) else { return nil }
+        guard let when = Self.when(glance) else {
+            return glance.state == .scheduled && glance.todayNote != nil ? countdown : nil
+        }
         return countdown.map { "Next warm-up \(when), \($0)" } ?? "Next warm-up \(when)"
     }
 

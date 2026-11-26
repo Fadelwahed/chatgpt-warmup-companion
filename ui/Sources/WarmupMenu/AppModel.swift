@@ -282,7 +282,8 @@ final class AppModel: ObservableObject {
         self.acknowledgedSlot = slot
         self.glance = GlanceBuilder.make(
             status: status, today: FriendlyTime.today(zone: status.schedule.zone), observedAt: self.lastObservedAt,
-            acknowledgedSlot: slot, runs: RunTimes.make(status: status, projection: self.projection))
+            acknowledgedSlot: slot, runs: RunTimes.make(status: status, projection: self.projection),
+            history: self.cachedHistory?.rows ?? [])
     }
 
     /// A failed read leaves the Schedule and Accounts rows from an earlier read on screen.
@@ -689,6 +690,16 @@ final class AppModel: ObservableObject {
         let truncated = report.truncated == true
         let week = WeekSummary.make(today: today, status: status, history: report.rows, truncated: truncated)
         self.cachedHistory = (report.rows, truncated, Self.nowMilliseconds())
+        // The headline counts today's earlier batch problems from these rows: rebuild it now, not at
+        // the next status read.
+        if self.readIssue == nil, let current = self.status {
+            self.assign(
+                \.glance,
+                GlanceBuilder.make(
+                    status: current, today: FriendlyTime.today(zone: current.schedule.zone),
+                    observedAt: self.lastObservedAt, acknowledgedSlot: self.acknowledgedSlot,
+                    runs: RunTimes.make(status: current, projection: self.projection), history: report.rows))
+        }
         self.assign(\.weekStale, false)
         self.assign(\.weekTruncated, truncated)
         self.assign(\.week, week)
@@ -1135,7 +1146,8 @@ final class AppModel: ObservableObject {
                 GlanceBuilder.make(
                     status: status, today: FriendlyTime.today(zone: status.schedule.zone),
                     observedAt: self.lastObservedAt, acknowledgedSlot: self.acknowledgedSlot,
-                    runs: RunTimes.make(status: status, projection: self.projection)))
+                    runs: RunTimes.make(status: status, projection: self.projection),
+                    history: self.cachedHistory?.rows ?? []))
             // Alerts observe only a verified engine, never one shown read-only after a mismatch.
             self.lastInstallation = self.bindingIssue == nil ? reply.envelope.installationId : nil
             if self.bindingIssue == nil, let installation = reply.envelope.installationId {

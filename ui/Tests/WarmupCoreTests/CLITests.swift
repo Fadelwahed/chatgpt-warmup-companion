@@ -156,6 +156,53 @@ import Testing
         #expect(GlanceBuilder.acknowledgedSlotKey == "acknowledgedProblemSlot")
     }
 
+    /// 0.7.0: an opened miss today is "Next 08:00 · 1 missed today", never "unknown", and still exits 0.
+    @Test func openedMissTodayHasItsOwnVerdict() throws {
+        let ledger: [String: Any] = [
+            "slot": "2026-11-12T01:00", "admission": "01:00", "verdict": "not_admitted", "cause": "no_tick_between",
+            "zone": "Asia/Gaza", "at": Self.observedNow - 3_600_000,
+        ]
+        let missed = try self.status { $0["slotLedger"] = [ledger] }
+        let snapshot = StatusCLI.Snapshot(
+            status: missed, observedAt: Self.observedNow, projection: try self.projection())
+        let text = StatusCLI.render(snapshot, json: false, now: Self.now, acknowledgedSlot: "2026-11-12T01:00")
+        #expect(text.code == 0)
+        // `render` names the zone only when it is not this Mac's own, so these checks hold in any zone.
+        let output = String(decoding: text.stdout, as: UTF8.self)
+        let first = try #require(output.split(separator: "\n").first)
+        #expect(first.hasPrefix("Next 08:00") && first.hasSuffix(" · 1 missed today"))
+        #expect(!output.contains("Last 7 days"), "the CLI reads no history")
+        let json = StatusCLI.render(snapshot, json: true, now: Self.now, acknowledgedSlot: "2026-11-12T01:00")
+        #expect(json.code == 0)
+        let report = try JSONDecoder().decode(StatusCLI.Report.self, from: json.stdout)
+        #expect(report.verdict.hasPrefix("Next 08:00") && report.verdict.hasSuffix(" · 1 missed today"))
+        #expect(report.state == "scheduled")
+        func verdict(macZone: String) throws -> String {
+            let glance = GlanceBuilder.make(
+                status: missed, today: "2026-11-12", observedAt: Self.observedNow, macZone: macZone,
+                acknowledgedSlot: "2026-11-12T01:00")
+            return StatusCLI.report(
+                status: missed, glance: glance, projection: try self.projection(), now: Self.now,
+                observedAt: Self.observedNow
+            ).verdict
+        }
+        #expect(try verdict(macZone: "Asia/Gaza") == "Next 08:00 · 1 missed today")
+        #expect(try verdict(macZone: "UTC") == "Next 08:00 (Asia/Gaza) · 1 missed today")
+        let keys = try #require(try JSONSerialization.jsonObject(with: json.stdout) as? [String: Any]).keys.sorted()
+        #expect(keys == ["accounts", "checkedAt", "health", "next", "state", "today", "verdict"])
+
+        let unresolved: [[String: Any]] = [["enrollmentId": "enr_01", "slot": "2026-11-12T01:00", "at": 1]]
+        let both = try self.status {
+            $0["slotLedger"] = [ledger]
+            $0["unresolved"] = unresolved
+        }
+        let attention = StatusCLI.render(
+            StatusCLI.Snapshot(status: both, observedAt: Self.observedNow, projection: try self.projection()),
+            json: false, now: Self.now, acknowledgedSlot: "2026-11-12T01:00")
+        #expect(attention.code == 1)
+        #expect(String(decoding: attention.stdout, as: UTF8.self).hasPrefix("Needs attention: 1 unresolved send\n"))
+    }
+
     /// 060-FIX1 item 7: without a ready schedule the CLI prints nothing and exits 2.
     @Test func unreadableScheduleExitsTwo() throws {
         let snapshot = StatusCLI.Snapshot(status: try self.status(), observedAt: nil, projection: nil)

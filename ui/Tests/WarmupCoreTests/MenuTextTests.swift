@@ -148,6 +148,28 @@ import Testing
         #expect(SetupCard.needed(alertsAnswered: false, loginAnswered: false, alertsOn: false, loginOn: false))
     }
 
+    /// 0.7.0: the menu header and the menu-bar label carry an opened problem today.
+    @Test func headerAndItemLabelCarryTodaysNote() throws {
+        let ledger: [String: Any] = [
+            "slot": "2026-11-12T01:00", "admission": "01:00", "verdict": "not_admitted", "cause": "no_tick_between",
+            "zone": "Asia/Gaza", "at": Self.at0800 - 3_600_000,
+        ]
+        let missed = try self.status { $0["slotLedger"] = [ledger] }
+        let now = Date(timeIntervalSince1970: Double(Self.at0800 - 297 * 60_000) / 1000)
+        let opened = GlanceBuilder.make(
+            status: missed, today: "2026-11-12", macZone: "Asia/Gaza", acknowledgedSlot: "2026-11-12T01:00")
+        #expect(
+            MenuText.header(glance: opened, status: missed, now: now) == "Next 08:00 · in 4 h 57 min · 1 missed today")
+        #expect(MenuText.itemLabel(glance: opened) == "Warm-up: Next 08:00 · 1 missed today")
+        let fine = try self.status()
+        let good = GlanceBuilder.make(status: fine, today: "2026-11-12", macZone: "Asia/Gaza")
+        #expect(MenuText.header(glance: good, status: fine, now: now) == "All good · next 08:00 · in 4 h 57 min")
+        #expect(MenuText.itemLabel(glance: good) == "Warm-up: All good · next 08:00")
+        #expect(MenuText.header(glance: good, status: nil, now: now) == "All good · next 08:00")
+        let paused = Glance(state: .paused, headline: "Paused", lastOutcome: nil, lastOutcomeSlot: nil, notes: [])
+        #expect(MenuText.header(glance: paused, status: fine, now: now) == "Paused")
+    }
+
     @Test func overviewPaneTexts() {
         let scheduled = Glance(
             state: .scheduled, headline: "All good · next 13:00", lastOutcome: nil, lastOutcomeSlot: nil, notes: [])

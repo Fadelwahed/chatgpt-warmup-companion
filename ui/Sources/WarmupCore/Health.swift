@@ -20,9 +20,11 @@ public struct HealthRow: Sendable, Equatable, Identifiable {
 }
 
 public enum HealthCheck {
-    /// Rows from one status reply, in the order an operator checks them.
+    /// Rows from one status reply, in the order an operator checks them. `week` adds "Last 7 days" (the
+    /// app passes its loaded report; the CLI reads no history and passes none).
     public static func rows(
-        status: EngineStatus, observedAt: Int?, wake: WakeReadiness, nextLocalAdmission: String?, now: Date = Date()
+        status: EngineStatus, observedAt: Int?, wake: WakeReadiness, nextLocalAdmission: String?, now: Date = Date(),
+        week: WeekReport? = nil
     ) -> [HealthRow] {
         let zone = status.schedule.zone
         var rows: [HealthRow] = []
@@ -51,6 +53,14 @@ public enum HealthCheck {
             status.enabled == 0
                 ? HealthRow(title: "Accounts", value: "none turned on", level: .warning)
                 : HealthRow(title: "Accounts", value: "\(status.enabled) of \(status.enrolled) on", level: .ok))
+        if let week, week.counted > 0 {
+            // Fewer than half confirmed needs a look. A count from cut records is never a pass: older
+            // warm-ups may be missing from it.
+            let partial = week.truncated || week.ledgerMayBeCut
+            let value = "\(week.confirmed) of \(week.counted) confirmed" + (partial ? " (records incomplete)" : "")
+            let level: HealthRow.Level = week.confirmed * 2 < week.counted ? .warning : partial ? .info : .ok
+            rows.append(HealthRow(title: "Last 7 days", value: value, level: level))
+        }
         if let lock = status.workLock, lock.state != "free" {
             let since = lock.since.map { " since \(FriendlyTime.instant($0, now: now, zone: zone))" } ?? ""
             switch lock.state {

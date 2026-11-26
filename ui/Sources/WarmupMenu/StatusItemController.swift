@@ -76,7 +76,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     private func apply(_ glance: Glance) {
         guard let button = self.statusItem?.button else { return }
-        let label = "Warm-up: \(glance.headline)"
+        let label = MenuText.itemLabel(glance: glance)
         // A failed read dims the last good symbol instead of showing a question mark (6.1).
         let failed = glance.state == .unavailable
         if !failed { self.lastGoodSymbol = glance.symbolName }
@@ -238,13 +238,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     /// The verdict with the countdown while the next slot is its subject: "All good · next 13:00 · in 2 h".
     private func updateHeader() {
-        let glance = self.model.glance
-        var title = glance.headline
-        if glance.state == .scheduled, let status = self.model.status, let next = status.next,
-            let due = Countdown.date(of: next, zone: status.schedule.zone)
-        {
-            title += " · \(Countdown.phrase(from: Date(), to: due))"
-        }
+        let title = MenuText.header(glance: self.model.glance, status: self.model.status, now: Date())
         self.headerItem.title = title
         self.headerItem.setAccessibilityLabel("\(title). Opens Warm-up.")
     }

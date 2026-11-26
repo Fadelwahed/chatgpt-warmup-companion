@@ -33,6 +33,10 @@ final class AlertController: NSObject, ObservableObject {
     static let compatibilityAlertKey = "compatibilityAlert"
     /// The fixed notification identifier, so a new episode's alert replaces the last one.
     static let compatibilityAlertIdentifier = "compatibility-blocked"
+    /// `WakeExpiryRecord` JSON (work order 132): the last booked wake day and whether it was announced.
+    static let wakeExpiryKey = "wakeExpiry"
+    /// The fixed notification identifier, so a newer expiry alert replaces the last one.
+    static let wakeExpiryIdentifier = "wake-expiry"
     static let notAllowed =
         "Alerts are on, but notifications are not allowed for Warm-up. You can allow them in System Settings > Notifications."
     static let notAsked =
@@ -160,6 +164,7 @@ final class AlertController: NSObject, ObservableObject {
             self.defaults.removeObject(forKey: Self.announcedKey)
             self.defaults.removeObject(forKey: Self.pauseReminderKey)
             self.defaults.removeObject(forKey: Self.compatibilityAlertKey)
+            self.defaults.removeObject(forKey: Self.wakeExpiryKey)
             self.outbox = AlertOutbox(installation: fingerprint)
             self.outboxStore?.remove()
             self.refused = false
@@ -199,6 +204,7 @@ final class AlertController: NSObject, ObservableObject {
             self.defaults.removeObject(forKey: Self.announcedKey)
             self.defaults.removeObject(forKey: Self.pauseReminderKey)
             self.defaults.removeObject(forKey: Self.compatibilityAlertKey)
+            self.defaults.removeObject(forKey: Self.wakeExpiryKey)
             self.outbox = AlertOutbox()
             self.outboxStore?.remove()
             self.refused = false
@@ -315,6 +321,7 @@ final class AlertController: NSObject, ObservableObject {
             self.storeCoveredThrough()
             await self.remindIfPaused(installation: installation, status: status, generation: generation)
             await self.alertIfBlocked(installation: installation, status: status, generation: generation)
+            await self.alertIfWakesEnd(installation: installation, status: status, generation: generation)
         }
     }
 
@@ -403,6 +410,57 @@ final class AlertController: NSObject, ObservableObject {
     private func saveCompatibilityRecord(_ record: CompatibilityRecord) {
         guard let data = try? JSONEncoder().encode(record) else { return }
         self.defaults.set(data, forKey: Self.compatibilityAlertKey)
+    }
+
+    /// Work order 132: one alert the day before the last booked wake, once per last booked day. Like
+    /// the pause reminder it never enters the outbox; a failed delivery is retried at the next
+    /// observation. The plan comes from the model's latest wake read.
+    private func alertIfWakesEnd(installation: String, status: EngineStatus, generation: Int) async {
+        // An earlier alert may have awaited macOS: alerts switched off or a scope reset since then
+        // cleared the key, and it must not be written back.
+        guard generation == self.generation, self.enabled else { return }
+        let stored = self.defaults.data(forKey: Self.wakeExpiryKey)
+            .flatMap { try? JSONDecoder().decode(WakeExpiryRecord.self, from: $0) }
+        guard
+            var record = WakeExpiry.update(
+                stored, installation: AlertScope.fingerprint(installation: installation), plan: self.model.wakePlan)
+        else {
+            self.defaults.removeObject(forKey: Self.wakeExpiryKey)
+            return
+        }
+        self.saveWakeExpiryRecord(record)
+        guard
+            WakeExpiry.due(
+                record, plan: self.model.wakePlan, scheduleEnabled: status.scheduleEnabled, today: Self.macToday()),
+            !self.holdDelivery, self.enabled, self.allowed
+        else { return }
+        // A newer read (scheduling paused, the script rerun) wins over this snapshot, checked again just
+        // before the notification is submitted.
+        let pending = record
+        let stillEnding = { [weak self] () -> Bool in
+            guard let model = self?.model else { return false }
+            return WakeExpiry.stillApplies(
+                pending, latestVerified: model.statusVerified, latestEnabled: model.status?.scheduleEnabled,
+                latestPlan: model.wakePlan, today: Self.macToday())
+        }
+        guard stillEnding() else { return }
+        let text = WakeExpiry.content(lastBookedDay: record.lastBookedDay, today: Self.macToday())
+        let content = AlertContent(title: text.title, body: text.body, slot: "", identifier: Self.wakeExpiryIdentifier)
+        guard await self.deliver(content, generation: generation, unless: stillEnding) else { return }
+        // Switched off or rescoped while macOS answered: the cleared key stays cleared.
+        guard generation == self.generation, self.enabled,
+            AlertScope.fingerprint(installation: installation) == self.armedInstallation
+        else { return }
+        record.announced = true
+        self.saveWakeExpiryRecord(record)
+    }
+
+    /// Today as yyyy-MM-dd on the Mac's own clock, the clock pmset books wakes in.
+    private static func macToday() -> String { ClockTime.day(from: Date(), zone: .current) }
+
+    private func saveWakeExpiryRecord(_ record: WakeExpiryRecord) {
+        guard let data = try? JSONEncoder().encode(record) else { return }
+        self.defaults.set(data, forKey: Self.wakeExpiryKey)
     }
 
     /// Adds an owed entry to the outbox (a slot already there is a no-op). False when the full outbox

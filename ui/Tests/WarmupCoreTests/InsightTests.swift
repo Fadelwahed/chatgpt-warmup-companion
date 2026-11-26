@@ -238,3 +238,149 @@ import Testing
         #expect(WeekStaleText.line(readAt: nil, zone: "Asia/Gaza") == "History could not be read.")
     }
 }
+
+/// Work order 132: one wake read for every coming time, its Schedule words and the Health value.
+@Suite struct WakePlans {
+
+    /// The host's `pmset -g sched` lines of 26 Nov 07:50 (work order 132), booked through 2 Dec.
+    static let host = """
+        Scheduled power events:
+         [0]  wake at 11/26/2026 08:00:05 by 'warmup'
+         [1]  wake at 11/26/2026 10:05:58 by 'com.apple.alarm.user-invisible-com.apple.calaccessd.travelEngine.periodicRefreshTimer'
+         [3]  wake at 11/26/2026 13:10:05 by 'pmset'
+         [4]  wake at 11/26/2026 13:10:05 by 'warmup'
+         [24]  wake at 12/02/2026 18:20:05 by 'warmup'
+        """
+
+    static func admission(
+        _ date: String, _ time: String, at: Int?, state: String = "upcoming", next: Bool? = nil
+    ) -> ProjectedAdmission {
+        ProjectedAdmission(
+            slot: "\(date)T\(time)", logicalTime: time, admission: time, at: at, state: state, cause: nil,
+            repeatedLocalTime: nil, next: next)
+    }
+
+    @Test func aWakeSecondsAfterTheMinuteCountsForThatMinute() {
+        let line = "Scheduled power events:\n [0]  wake at 11/27/2026 08:00:05 by 'warmup'"
+        #expect(WakeReadiness.assess(pmset: line, date: "2026-11-27", admission: "08:00") == .ready(wakeAt: "08:00"))
+        #expect(WakeReadiness.assess(pmset: line, date: "2026-11-27", admission: "13:10") == .notScheduled)
+    }
+
+    @Test func onePlanAssessesEveryTimeAndFindsTheLastBookedDay() {
+        let slots: [WakeReadiness.Slot] = [
+            (id: "a", date: "2026-11-26", admission: "08:00"), (id: "b", date: "2026-11-26", admission: "13:10"),
+            (id: "c", date: "2026-11-26", admission: "18:20"),
+        ]
+        let plan = WakeReadiness.plan(pmset: Self.host, slots: slots)
+        #expect(plan.bySlot["a"] == .ready(wakeAt: "08:00"))
+        #expect(plan.bySlot["b"] == .ready(wakeAt: "13:10"))
+        #expect(plan.bySlot["c"] == .notScheduled)
+        #expect(plan.isKnown)
+        #expect(!plan.hasRepeating)
+        #expect(plan.lastBookedDay == "2026-12-02")
+        // A later system wake does not extend the bookings.
+        let apple = Self.host + "\n [25]  wake at 12/05/2026 03:00:00 by 'com.apple.alarm.user-invisible-x'"
+        #expect(WakeReadiness.plan(pmset: apple, slots: slots).lastBookedDay == "2026-12-02")
+        let empty = WakeReadiness.plan(pmset: "", slots: slots)
+        #expect(empty.lastBookedDay == nil)
+        #expect(empty.isKnown)
+        let repeating = "Repeating power events:\n  wakepoweron at 7:55AM every day\nScheduled power events:\n"
+        let onlyRepeating = WakeReadiness.plan(pmset: repeating, slots: slots)
+        #expect(onlyRepeating.hasRepeating)
+        #expect(onlyRepeating.lastBookedDay == nil)
+        #expect(onlyRepeating.bySlot["a"] == .ready(wakeAt: "07:55"))
+        #expect(!WakePlan.unknown.isKnown)
+        #expect(WakePlan.unknown.readiness("a") == .unknown)
+        #expect(plan.readiness("missing") == .unknown)
+    }
+
+    @Test func theSlotListCoversNextAndEveryUpcomingTimeInMacLocalTime() throws {
+        let gaza = try #require(TimeZone(identifier: "Asia/Gaza"))
+        // 2026-11-26 06:00 UTC is 08:00 in Gaza (UTC+2).
+        let eight = 1_795_672_800_000
+        let next = NextSlot(slot: "2026-11-26T08:00", admission: "08:00", date: "2026-11-26", at: eight)
+        let day = ProjectedDay(
+            date: "2026-11-26", weekday: 4, source: "recurring", exclusion: nil,
+            admissions: [
+                Self.admission("2026-11-26", "01:00", at: eight - 7 * 3_600_000, state: "missed"),
+                Self.admission("2026-11-26", "08:00", at: eight, state: "next", next: true),
+                Self.admission("2026-11-26", "13:10", at: eight + 310 * 60_000),
+                Self.admission("2026-11-26", "18:20", at: nil),
+            ], attemptsPerAccount: 1, configuredAttempts: 1)
+        let projection = ScheduleProjection(
+            scheduleEnabled: true, scheduleRevision: 1, timeZoneMode: "local", weekdays: [], times: [],
+            zoneNotice: nil, localDate: "2026-11-26", zone: "Asia/Gaza", accounts: [], days: [day], next: next)
+        let slots = WakeReadiness.slots(next: next, scheduleZone: "Asia/Gaza", projection: projection, local: gaza)
+        #expect(slots.map(\.id) == [WakeReadiness.nextKey, "2026-11-26T08:00#0", "2026-11-26T13:10#0"])
+        #expect(slots.map(\.date) == ["2026-11-26", "2026-11-26", "2026-11-26"])
+        #expect(slots.map(\.admission) == ["08:00", "08:00", "13:10"])
+        // In UTC the same instants fall at 06:00 and 11:10.
+        let utc = WakeReadiness.slots(next: next, scheduleZone: "Asia/Gaza", projection: projection, local: .gmt)
+        #expect(utc.map(\.admission) == ["06:00", "06:00", "11:10"])
+        // No projection: the next time only.
+        let only = WakeReadiness.slots(next: next, scheduleZone: "Asia/Gaza", projection: nil, local: gaza)
+        #expect(only.map(\.id) == [WakeReadiness.nextKey])
+    }
+
+    @Test func scheduleRowsSayWhetherAWakeIsBooked() {
+        let now = 1_000
+        let upcoming = Self.admission("2026-11-26", "13:10", at: 2_000)
+        let past = Self.admission("2026-11-26", "08:00", at: 500, state: "confirmed")
+        let booked = WakePlan(bySlot: [upcoming.id: .ready(wakeAt: "13:10")], lastBookedDay: nil, hasRepeating: false)
+        let missing = WakePlan(bySlot: [upcoming.id: .notScheduled], lastBookedDay: nil, hasRepeating: false)
+        #expect(ScheduleWakeText.row(admission: upcoming, plan: booked, now: now) == "wake booked")
+        #expect(ScheduleWakeText.row(admission: upcoming, plan: missing, now: now) == "no wake")
+        #expect(ScheduleWakeText.row(admission: past, plan: booked, now: now) == nil)
+        #expect(ScheduleWakeText.row(admission: upcoming, plan: .unknown, now: now) == nil)
+        // A time the read did not cover gets no mark, never "no wake".
+        let other = WakePlan(bySlot: [:], lastBookedDay: nil, hasRepeating: false)
+        #expect(ScheduleWakeText.row(admission: upcoming, plan: other, now: now) == nil)
+    }
+
+    @Test func comingDaysCountTheirBookedWakes() {
+        let times = ["08:00", "13:10", "18:20"].map { Self.admission("2026-11-27", $0, at: 5_000) }
+        func plan(_ ready: Int) -> WakePlan {
+            var bySlot: [String: WakeReadiness] = [:]
+            for (index, admission) in times.enumerated() {
+                bySlot[admission.id] = index < ready ? .ready(wakeAt: admission.admission) : .notScheduled
+            }
+            return WakePlan(bySlot: bySlot, lastBookedDay: nil, hasRepeating: false)
+        }
+        #expect(ScheduleWakeText.day(times, plan: plan(3)) == "3 wakes booked")
+        #expect(ScheduleWakeText.day(times, plan: plan(1)) == "1 of 3 wakes booked")
+        #expect(ScheduleWakeText.day(times, plan: plan(0)) == "no wakes booked")
+        #expect(ScheduleWakeText.day(Array(times.prefix(1)), plan: plan(1)) == "1 wake booked")
+        #expect(ScheduleWakeText.day(times, plan: .unknown) == nil)
+        #expect(ScheduleWakeText.day([], plan: plan(3)) == nil)
+    }
+
+    @Test func theSummaryLineSaysHowFarBookingsReach() {
+        let booked = WakePlan(bySlot: [:], lastBookedDay: "2026-12-02", hasRepeating: false)
+        #expect(ScheduleWakeText.summary(plan: booked, scheduleEnabled: true) == "Wakes booked through Wed 2 Dec.")
+        let repeating = WakePlan(bySlot: ["a": .ready(wakeAt: "07:55")], lastBookedDay: nil, hasRepeating: true)
+        #expect(ScheduleWakeText.summary(plan: repeating, scheduleEnabled: true) == "A repeating wake is set.")
+        // A repeating event that wakes for no time (a repeating sleep, say) is not a wake.
+        let sleepOnly = WakePlan(bySlot: ["a": .notScheduled], lastBookedDay: nil, hasRepeating: true)
+        let none = "No wakes booked. A warm-up is missed if the Mac is asleep at its time."
+        #expect(ScheduleWakeText.summary(plan: sleepOnly, scheduleEnabled: true) == none)
+        let empty = WakePlan(bySlot: ["a": .notScheduled], lastBookedDay: nil, hasRepeating: false)
+        #expect(ScheduleWakeText.summary(plan: empty, scheduleEnabled: true) == none)
+        #expect(ScheduleWakeText.summary(plan: .unknown, scheduleEnabled: true) == nil)
+        #expect(ScheduleWakeText.summary(plan: booked, scheduleEnabled: false) == nil)
+        let texts = [booked, repeating, empty].compactMap { ScheduleWakeText.summary(plan: $0, scheduleEnabled: true) }
+        #expect(Fixes051.offending(texts).isEmpty)
+    }
+
+    @Test func healthSaysAWakeIsBooked() throws {
+        let status = try #require(
+            ReplyValidator.payload(EngineStatus.self, from: try Fixture.output("status-enabled")))
+        let rows = HealthCheck.rows(
+            status: status, observedAt: nil, wake: .ready(wakeAt: "08:00"), nextLocalAdmission: "08:00")
+        #expect(rows.first { $0.title == "Mac wake" }?.value == "booked for 08:00")
+        let none = HealthCheck.rows(
+            status: status, observedAt: nil, wake: .notScheduled, nextLocalAdmission: "08:00")
+        let row = none.first { $0.title == "Mac wake" }
+        #expect(row?.value == "none set before 08:00; the Mac must be awake")
+        #expect(row?.level == .info)
+    }
+}

@@ -75,7 +75,8 @@ public enum HealthCheck {
         }
         if status.scheduleEnabled, status.next != nil {
             switch wake {
-            case let .ready(wakeAt): rows.append(HealthRow(title: "Mac wake", value: "set for \(wakeAt)", level: .ok))
+            case let .ready(wakeAt):
+                rows.append(HealthRow(title: "Mac wake", value: "booked for \(wakeAt)", level: .ok))
             case .notScheduled:
                 let before = nextLocalAdmission.map { " before \($0)" } ?? ""
                 rows.append(

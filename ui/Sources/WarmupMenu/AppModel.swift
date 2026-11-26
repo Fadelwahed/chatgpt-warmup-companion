@@ -90,6 +90,10 @@ final class AppModel: ObservableObject {
     private let usageStore: UsageLogStore?
     private var sleepObservers: [NSObjectProtocol] = []
     @Published private(set) var wake: WakeReadiness = .unknown
+    /// The same wake read against every upcoming time Schedule lists (work order 132).
+    @Published private(set) var wakePlan: WakePlan = .unknown
+    /// The last good `pmset -g sched` output, kept so a projection load can be assessed without a read.
+    private var wakeText: String?
     /// True when the Mac already has a repeating wake or power event; the suggested command replaces it.
     @Published private(set) var wakeRepeatExists = false
     @Published private(set) var copyConfirmation: String?
@@ -633,6 +637,8 @@ final class AppModel: ObservableObject {
             }
             self.assign(\.projection, projection)
             self.projectionReadAt = Date()
+            // New Schedule rows get their wake marks from the last wake read; no new read.
+            self.applyWakeText()
             self.assign(\.projectionStale, false)
             self.assign(\.projectionIssue, nil)
             return true
@@ -711,28 +717,46 @@ final class AppModel: ObservableObject {
         return true
     }
 
-    /// Reads the system's scheduled wakes (`/usr/bin/pmset -g sched`, read-only) against the next
-    /// slot in Mac local time. Any failure leaves the readiness unknown.
+    /// Reads the system's scheduled wakes (`/usr/bin/pmset -g sched`, read-only) once, against the next
+    /// slot and every upcoming time in the loaded projection, in Mac local time (pmset prints the Mac's
+    /// own clock). Any failure leaves the readiness and the plan unknown.
     private func checkWake() async {
         guard let status = self.status, let next = status.next,
-            let due = Countdown.date(of: next, zone: status.schedule.zone)
+            Countdown.date(of: next, zone: status.schedule.zone) != nil
         else {
-            self.assign(\.wake, .unknown)
+            self.wakeText = nil
+            self.applyWakeText()
             return
         }
-        // Mac local time, POSIX digits: pmset prints the Mac's own clock.
-        let parts = [ClockTime.day(from: due, zone: .current), ClockTime.string(from: due, zone: .current)]
         let output = try? await ProcessRunner().run(
             executable: "/usr/bin/pmset", arguments: ["-g", "sched"], environment: ["PATH": "/usr/bin:/bin", "LANG": "C"],
             workingDirectory: "/", timeout: .seconds(3), terminateOnOverflow: true)
-        guard let output, output.exitCode == 0, !output.timedOut, parts.count == 2,
+        guard let output, output.exitCode == 0, !output.timedOut,
             let text = String(data: output.stdout, encoding: .utf8)
         else {
-            self.assign(\.wake, .unknown)
+            self.wakeText = nil
+            self.applyWakeText()
             return
         }
-        self.assign(\.wake, WakeReadiness.assess(pmset: text, date: parts[0], admission: parts[1]))
-        self.assign(\.wakeRepeatExists, WakeReadiness.hasRepeating(pmset: text))
+        self.wakeText = text
+        self.applyWakeText()
+    }
+
+    /// Assesses the last good `pmset` output against the next slot and the loaded projection. Called
+    /// after a wake read and after a projection load, so new Schedule rows need no further read.
+    /// Without a good read everything is unknown.
+    private func applyWakeText() {
+        guard let text = self.wakeText, let status = self.status else {
+            self.assign(\.wake, .unknown)
+            self.assign(\.wakePlan, .unknown)
+            return
+        }
+        let slots = WakeReadiness.slots(
+            next: status.next, scheduleZone: status.schedule.zone, projection: self.projection, local: .current)
+        let plan = WakeReadiness.plan(pmset: text, slots: slots)
+        self.assign(\.wakePlan, plan)
+        self.assign(\.wake, plan.readiness(WakeReadiness.nextKey))
+        self.assign(\.wakeRepeatExists, plan.hasRepeating)
     }
 
     /// The next slot's admission time in Mac local time, for wake guidance.

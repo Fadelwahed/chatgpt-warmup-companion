@@ -476,4 +476,91 @@ public enum WakeReadiness: Sendable, Equatable {
         let shifted = (value - minutes + 1440) % 1440
         return String(format: "%02d:%02d", shifted / 60, shifted % 60)
     }
+
+    // MARK: Many times (work order 132)
+
+    /// One time to assess: `date` yyyy-MM-dd and `admission` HH:mm, both in the Mac's local time.
+    public typealias Slot = (id: String, date: String, admission: String)
+
+    /// The plan key of the status's next time; Schedule rows use `ProjectedAdmission.id`.
+    public static let nextKey = "next"
+
+    /// Every time one `pmset -g sched` read can speak for: the status's next time (`nextKey`) and each
+    /// upcoming projected time with a known instant (keyed by its row id), converted to `local`.
+    public static func slots(
+        next: NextSlot?, scheduleZone: String, projection: ScheduleProjection?, local: TimeZone = .current
+    ) -> [Slot] {
+        var slots: [Slot] = []
+        if let next, let due = Countdown.date(of: next, zone: scheduleZone) {
+            slots.append(Self.slot(id: self.nextKey, at: due, local: local))
+        }
+        for admission in projection?.days.flatMap(\.admissions) ?? [] {
+            guard admission.state == "upcoming" || admission.state == "next" || admission.next == true,
+                let at = admission.at
+            else { continue }
+            slots.append(Self.slot(id: admission.id, at: Date(timeIntervalSince1970: Double(at) / 1000), local: local))
+        }
+        return slots
+    }
+
+    private static func slot(id: String, at date: Date, local: TimeZone) -> Slot {
+        (id: id, date: ClockTime.day(from: date, zone: local), admission: ClockTime.string(from: date, zone: local))
+    }
+
+    /// Each slot assessed against one read, the latest day with a one-time wake not owned by the
+    /// system, and whether any repeating event is listed.
+    public static func plan(pmset output: String, slots: [Slot]) -> WakePlan {
+        var bySlot: [String: WakeReadiness] = [:]
+        for slot in slots {
+            bySlot[slot.id] = self.assess(pmset: output, date: slot.date, admission: slot.admission)
+        }
+        return WakePlan(
+            bySlot: bySlot, lastBookedDay: self.lastBookedDay(pmset: output),
+            hasRepeating: self.hasRepeating(pmset: output))
+    }
+
+    /// The latest `yyyy-MM-dd` among one-time wakes whose owner does not start with `com.apple.`.
+    static func lastBookedDay(pmset output: String) -> String? {
+        var repeating = false
+        var latest: String?
+        for raw in output.split(separator: "\n") {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if line.hasPrefix("Repeating power events") { repeating = true; continue }
+            if line.hasPrefix("Scheduled power events") { repeating = false; continue }
+            guard !repeating, Self.isWake(line), !line.contains("'com.apple."),
+                let range = line.range(of: #"\d{2}/\d{2}/\d{4}"#, options: .regularExpression)
+            else { continue }
+            let day = line[range].split(separator: "/")
+            let date = "\(day[2])-\(day[0])-\(day[1])"
+            if latest.map({ date > $0 }) ?? true { latest = date }
+        }
+        return latest
+    }
+}
+
+/// What one wake read says about every coming time (work order 132).
+public struct WakePlan: Sendable, Equatable {
+    /// Each assessed time by key (`WakeReadiness.nextKey` or a Schedule row id).
+    public let bySlot: [String: WakeReadiness]
+    /// The latest day (yyyy-MM-dd, Mac local) with a one-time wake not owned by the system.
+    public let lastBookedDay: String?
+    /// `pmset` lists a repeating power event of any kind.
+    public let hasRepeating: Bool
+    /// False only for `unknown`: the read failed, so nothing is known.
+    public let isKnown: Bool
+
+    public init(bySlot: [String: WakeReadiness], lastBookedDay: String?, hasRepeating: Bool, isKnown: Bool = true) {
+        self.bySlot = bySlot
+        self.lastBookedDay = lastBookedDay
+        self.hasRepeating = hasRepeating
+        self.isKnown = isKnown
+    }
+
+    public static let unknown = WakePlan(bySlot: [:], lastBookedDay: nil, hasRepeating: false, isKnown: false)
+
+    /// The readiness for a key; unknown when the plan is unknown or the time was not assessed.
+    public func readiness(_ key: String) -> WakeReadiness {
+        guard self.isKnown else { return .unknown }
+        return self.bySlot[key] ?? .unknown
+    }
 }

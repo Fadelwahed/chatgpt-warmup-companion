@@ -150,6 +150,16 @@ import Testing
         }
     }
 
+    @Test func helpSaysWhereWakesAreShownAndBooked() throws {
+        let section = try #require(HelpText.sections.first { $0.heading == "When warm-ups run" })
+        #expect(
+            section.body.hasSuffix(
+                "Schedule shows whether a wake is booked for each coming time. The schedule-wakes script in the "
+                    + "Warm-up repository books them for 7 days at a time; with alerts on, Warm-up tells you the day "
+                    + "before they run out."))
+        #expect(!section.body.contains("Settings shows a command"))
+    }
+
     @Test func helpHasSixSections() {
         #expect(HelpText.sections.count == 6)
     }

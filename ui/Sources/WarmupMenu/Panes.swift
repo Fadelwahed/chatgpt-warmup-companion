@@ -838,9 +838,14 @@ private struct WakeReadinessView: View {
     @EnvironmentObject private var model: AppModel
 
     var body: some View {
+        Text(
+            "To book a wake for every warm-up of the next 7 days, run scripts/schedule-wakes.sh from the Warm-up "
+                + "repository. It asks for your password and replaces only the wakes it booked before."
+        )
+        .font(.callout)
         switch self.model.wake {
         case let .ready(wakeAt):
-            Label("A wake is set for \(wakeAt), before the next warm-up.", systemImage: "alarm")
+            Label("A wake is booked for \(wakeAt).", systemImage: "alarm")
         case .notScheduled:
             let admission = self.model.nextLocalAdmission ?? "the next warm-up"
             Label("No wake is set before \(admission).", systemImage: "moon.zzz")
@@ -983,6 +988,11 @@ struct SchedulePane: View {
             ForEach(self.spacingAdvice, id: \.self) { advice in
                 Label(advice, systemImage: "exclamationmark.triangle").font(.callout)
             }
+            if let wakes = ScheduleWakeText.summary(
+                plan: self.model.wakePlan, scheduleEnabled: projection.scheduleEnabled)
+            {
+                Text(wakes).font(.callout).accessibilityLabel(wakes)
+            }
             if let notice = projection.zoneNotice {
                 Label("Time zone changed from \(notice.previousZone) to \(notice.zone).", systemImage: "globe")
             }
@@ -1005,10 +1015,19 @@ struct SchedulePane: View {
                     let mark = marks.first { $0.time == String(admission.slot.suffix(5)) }?.mark
                     TimelineView(.periodic(from: .now, by: 30)) { context in
                         let now = Int(context.date.timeIntervalSince1970 * 1000)
-                        AdmissionRow(
-                            admission: admission,
-                            words: ScheduleRowText.words(
-                                admission: admission, mark: mark, isNext: admission.next == true, now: now))
+                        HStack {
+                            AdmissionRow(
+                                admission: admission,
+                                words: ScheduleRowText.words(
+                                    admission: admission, mark: mark, isNext: admission.next == true, now: now))
+                            if let wake = ScheduleWakeText.row(
+                                admission: admission, plan: self.model.wakePlan, now: now)
+                            {
+                                self.wakeLabel(wake)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                        .accessibilityElement(children: .combine)
                     }
                     .tag(admission.id)
                     .accessibilityHint("Shows what happened at this time")
@@ -1029,10 +1048,24 @@ struct SchedulePane: View {
             Section("Coming days") {
                 ForEach(rows) { row in
                     switch row {
-                    case let .folded(_, text):
-                        Text(text)
+                    case let .folded(date, text):
+                        let wakes = projection.days.first { $0.date == date }
+                            .flatMap { ScheduleWakeText.day($0.admissions, plan: self.model.wakePlan) }
+                        HStack {
+                            Text(text)
+                            Spacer()
+                            if let wakes { Text(wakes).foregroundStyle(.secondary) }
+                        }
+                        .accessibilityElement(children: .combine)
                     case let .expanded(day):
-                        Text(self.dayTitle(day, zone: projection.zone)).font(.headline)
+                        HStack {
+                            Text(self.dayTitle(day, zone: projection.zone)).font(.headline)
+                            Spacer()
+                            if let wakes = ScheduleWakeText.day(day.admissions, plan: self.model.wakePlan) {
+                                Text(wakes).foregroundStyle(.secondary)
+                            }
+                        }
+                        .accessibilityElement(children: .combine)
                         if let exclusion = day.exclusion {
                             Label(self.offText(exclusion), systemImage: "calendar.badge.minus")
                         } else if day.admissions.isEmpty {
@@ -1078,6 +1111,16 @@ struct SchedulePane: View {
                     }
                 }
             }
+        }
+    }
+
+    /// "wake booked" with an alarm, or a plain "no wake": a secondary mark, never a warning.
+    @ViewBuilder
+    private func wakeLabel(_ text: String) -> some View {
+        if text == ScheduleWakeText.booked {
+            Label(text, systemImage: ScheduleWakeText.bookedSymbol).foregroundStyle(.secondary)
+        } else {
+            Text(text).foregroundStyle(.secondary)
         }
     }
 

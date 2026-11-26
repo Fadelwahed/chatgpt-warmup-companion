@@ -33,9 +33,9 @@ public enum HelpText {
             (
                 heading: "When warm-ups run",
                 body: "The Mac must be awake at each time. A time that passes while the Mac is asleep or off is "
-                    + "missed, and Warm-up never sends it late. Settings shows a command that wakes the Mac a few "
-                    + "minutes before your next time; check the time it names before you copy it, so the wake "
-                    + "covers the time you mean."
+                    + "missed, and Warm-up never sends it late. Schedule shows whether a wake is booked for each coming "
+                    + "time. The schedule-wakes script in the Warm-up repository books them for 7 days at a time; "
+                    + "with alerts on, Warm-up tells you the day before they run out."
             ),
             (
                 heading: "What the marks mean",

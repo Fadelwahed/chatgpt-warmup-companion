@@ -122,6 +122,49 @@ public enum ScheduleRowText {
     static func capitalized(_ text: String) -> String { text.prefix(1).uppercased() + text.dropFirst() }
 }
 
+/// Wake marks on Schedule (work order 132): one word per upcoming time today, a count per coming
+/// day and one line on how far the bookings reach. Nothing when the wake read is unknown.
+public enum ScheduleWakeText {
+    public static let booked = "wake booked"
+    public static let notBooked = "no wake"
+    public static let bookedSymbol = "alarm"
+
+    /// "wake booked" or "no wake" for a time still to come; nil for a past time or an unknown wake.
+    public static func row(admission: ProjectedAdmission, plan: WakePlan, now: Int) -> String? {
+        let past = admission.at.map { $0 <= now } ?? (admission.state != "upcoming")
+        guard !past else { return nil }
+        switch plan.readiness(admission.id) {
+        case .ready: return self.booked
+        case .notScheduled: return self.notBooked
+        case .unknown: return nil
+        }
+    }
+
+    /// "3 wakes booked", "1 of 3 wakes booked" or "no wakes booked" for a coming day's times. Nil when
+    /// the day has none or any of them is not in the plan.
+    public static func day(_ admissions: [ProjectedAdmission], plan: WakePlan) -> String? {
+        let readiness = admissions.map { plan.readiness($0.id) }
+        guard !readiness.isEmpty, !readiness.contains(.unknown) else { return nil }
+        let total = readiness.count
+        let booked = readiness.filter { $0 != .notScheduled }.count
+        let noun = total == 1 ? "wake" : "wakes"
+        if booked == 0 { return "no wakes booked" }
+        if booked == total { return "\(total) \(noun) booked" }
+        return "\(booked) of \(total) \(noun) booked"
+    }
+
+    /// The line under the schedule summary. Nil when the wake read is unknown or scheduling is paused.
+    public static func summary(plan: WakePlan, scheduleEnabled: Bool) -> String? {
+        guard plan.isKnown, scheduleEnabled else { return nil }
+        if let last = plan.lastBookedDay { return "Wakes booked through \(FriendlyTime.day(last, today: nil))." }
+        // `hasRepeating` is true for any repeating event (a repeating sleep too): require a match.
+        if plan.hasRepeating, plan.bySlot.values.contains(where: { $0 != .notScheduled && $0 != .unknown }) {
+            return "A repeating wake is set."
+        }
+        return "No wakes booked. A warm-up is missed if the Mac is asleep at its time."
+    }
+}
+
 /// Future days that only repeat the recurring times fold to one line each (X6).
 public enum ScheduleFold {
     public enum Row: Sendable, Equatable, Identifiable {

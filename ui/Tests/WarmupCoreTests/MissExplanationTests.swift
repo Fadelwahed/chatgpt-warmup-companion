@@ -116,13 +116,39 @@ import Testing
             }
         }
         for seen in [true, false] {
-            #expect(!MissExplanation.jobLine(seenAfterwards: seen).contains("check"))
+            let line = MissExplanation.jobLine(seenAfterwards: seen, verdict: "not_admitted")
+            #expect(line?.contains("check") == false)
         }
     }
 
     @Test func theJobLineIsOneSentence() {
-        #expect(MissExplanation.jobLine(seenAfterwards: true) == "Warm-up's background job was running afterwards.")
+        #expect(
+            MissExplanation.jobLine(seenAfterwards: true, verdict: "admitted")
+                == "Warm-up's background job was running afterwards.")
         let unseen = "Warm-up's background job was not seen running afterwards."
-        #expect(MissExplanation.jobLine(seenAfterwards: false) == unseen)
+        #expect(MissExplanation.jobLine(seenAfterwards: false, verdict: "not_admitted") == unseen)
+    }
+
+    /// Work order 138 item 1: only a time whose minute has passed carries the job line.
+    @Test func theJobLineIsOnlyForPastTimes() {
+        let seen = "Warm-up's background job was running afterwards."
+        let unseen = "Warm-up's background job was not seen running afterwards."
+        for verdict in ["scheduled", "in_progress"] {
+            #expect(MissExplanation.jobLine(seenAfterwards: false, verdict: verdict) == nil, "\(verdict)")
+        }
+        for verdict in ["admitted", "not_admitted", "unobserved", "unknown"] {
+            #expect(MissExplanation.jobLine(seenAfterwards: true, verdict: verdict) == seen, "\(verdict)")
+            #expect(MissExplanation.jobLine(seenAfterwards: false, verdict: verdict) == unseen, "\(verdict)")
+        }
+        let every = [
+            "admitted", "not_admitted", "unobserved", "unknown", "scheduled", "in_progress", "excluded",
+            "not_configured", "nonexistent_local_time", "brand_new",
+        ]
+        for verdict in every {
+            #expect(MissExplanation.jobLine(seenAfterwards: nil, verdict: verdict) == nil, "\(verdict)")
+        }
+        for seenAfterwards in [true, false] {
+            #expect(MissExplanation.jobLine(seenAfterwards: seenAfterwards, verdict: "brand_new") == nil)
+        }
     }
 }

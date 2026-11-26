@@ -1523,7 +1523,10 @@ private struct SlotDetail: View {
                 let today = FriendlyTime.today(zone: result.zone)
                 Form {
                     Section(FriendlyTime.slot(e.slot, today: today)) {
-                        Label(Wording.verdict(e.verdict), systemImage: Wording.verdictSymbol(e.verdict)).font(.headline)
+                        Label(
+                            Wording.slotHeadline(verdict: e.verdict, exclusion: e.exclusion),
+                            systemImage: Wording.verdictSymbol(e.verdict)
+                        ).font(.headline)
                         // A detail still read as running is reloaded once the batch ends (AppModel).
                         if e.verdict != "in_progress", let note = self.model.batchNote(for: e.slot) {
                             Label(note, systemImage: "exclamationmark.triangle").font(.callout)
@@ -1543,8 +1546,10 @@ private struct SlotDetail: View {
                                 }
                             }
                         }
-                        if let observed = e.heartbeat.observedAfterAdmission {
-                            Text(MissExplanation.jobLine(seenAfterwards: observed)).font(.callout)
+                        if let line = MissExplanation.jobLine(
+                            seenAfterwards: e.heartbeat.observedAfterAdmission, verdict: e.verdict)
+                        {
+                            Text(line).font(.callout)
                         }
                     }
                     ForEach(Array(e.accounts.enumerated()), id: \.offset) { index, account in

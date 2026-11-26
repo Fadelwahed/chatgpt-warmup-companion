@@ -144,6 +144,18 @@ import Testing
         #expect(Wording.verdict("excluded") == "Skipped: day off")
         let rows = ["vacation", "weekday", "other_reason"].map(ScheduleRowText.excluded)
         for text in rows + [Wording.verdict("excluded")] { #expect(!text.hasPrefix("Off:")) }
+        // Work order 138 item 2: the detail headline says "time off" as the list row does.
+        #expect(Wording.slotHeadline(verdict: "excluded", exclusion: "vacation") == "Skipped: time off")
+        #expect(Wording.slotHeadline(verdict: "excluded", exclusion: "weekday") == "Skipped: day off")
+        #expect(Wording.slotHeadline(verdict: "excluded", exclusion: nil) == "Skipped: day off")
+        for verdict in ["admitted", "not_admitted", "scheduled", "in_progress", "brand_new"] {
+            #expect(Wording.slotHeadline(verdict: verdict, exclusion: "vacation") == Wording.verdict(verdict))
+            #expect(Wording.slotHeadline(verdict: verdict, exclusion: nil) == Wording.verdict(verdict))
+        }
+        for exclusion in ["vacation", "weekday", "other_reason"] {
+            let row = ScheduleRowText.excluded(exclusion)
+            #expect(row == "– " + Wording.slotHeadline(verdict: "excluded", exclusion: exclusion))
+        }
     }
 
     /// Work order 135 item 4: "today only" for an upcoming time today that is not an every-day time.

@@ -63,9 +63,14 @@ public enum MissExplanation {
         }
     }
 
-    /// The sentence that replaces the "checked in afterwards" row.
-    public static func jobLine(seenAfterwards: Bool) -> String {
-        seenAfterwards
+    /// Verdicts whose minute has passed; a new engine verdict hides the job line.
+    static let pastVerdicts: Set<String> = ["admitted", "not_admitted", "unobserved", "unknown"]
+
+    /// The sentence that replaces the "checked in afterwards" row; nil unless the verdict is a past one
+    /// (an upcoming or running time reads `false`) or when nothing was recorded.
+    public static func jobLine(seenAfterwards: Bool?, verdict: String) -> String? {
+        guard let seenAfterwards, Self.pastVerdicts.contains(verdict) else { return nil }
+        return seenAfterwards
             ? "Warm-up's background job was running afterwards."
             : "Warm-up's background job was not seen running afterwards."
     }

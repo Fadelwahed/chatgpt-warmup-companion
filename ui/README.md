@@ -12,6 +12,16 @@ A native macOS menu-bar companion for the existing Warm-up CLI. The CLI and its 
 - **Schedule:** today plus six days from `schedule inspect`, with weekday exclusions, repeated or nonexistent DST minutes and the next admission. Selecting a slot runs `schedule inspect --slot`. The detail separates whether a request was sent, whether a response was confirmed and the guidance. It always shows "Usage window effect unverified". **Copy redacted summary** copies reason codes and times only: no installation ID, account IDs or tokens.
 - **Accounts:** rows from `list`, which reads Router's registry without credentials or network.
 
+## Version 0.7.3 (27 November 2026): no job line before a time has come, and "time off" in the detail
+
+Built from work order 138.
+
+- **Schedule detail of a time still to come.** An upcoming or still-running time no longer says "Warm-up's background job was not seen running afterwards." The line appears only for a time that has finished (ran, missed, not recorded or unknown); its two sentences are unchanged. Known limit: a batch that finishes within its own minute can still show "not seen running" until the engine's next check. The copied summary's heartbeat line is unchanged.
+- **Time-off detail headline.** The detail of a time-off day is headed "Skipped: time off", as the Schedule list says; a day left out of the week stays "Skipped: day off". This closes the 0.7.0 known limit about the time-off headline.
+- **`--status` exit code, documented.** The code is unchanged: a problem already opened in the app, or a send marked reviewed, does not count, so the first line can say "3 not confirmed today" while the exit code is 0.
+- **Also in this build** (fixed after 0.7.2 was staged): with every account turned off the Accounts table lists them instead of staying blank, and the lines under the table no longer describe a row that was just hidden; VoiceOver reads a week day with the same times its cells show when a time was moved for a day.
+- **Tests.** 362 Swift tests pass (361 before). Not yet seen on screen.
+
 ## Version 0.7.2 (26 November 2026): advice that matches what happened, and a `--status` that agrees with the window
 
 Built from work order 137.
@@ -111,7 +121,7 @@ Nothing new is sent to the engine. Every change below reads what the engine alre
 - **Schedule.** A summary row with Edit Times…, which opens the editor in a sheet (Preview, then Save… or Cancel). Spacing advice when two times sit inside one usage window. Today's rows say what happened; later days that repeat the usual times fold to one line; "Earlier this week" lists past days. Schedule opens on the time that needs a look, else the latest finished one today, else the next one. The detail's copy button reads Copy Summary and never includes account names or IDs.
 - **Menu bar.** "Menu bar shows" picks Icon only, Time left or Next time. The icon dims while the last read failed.
 - **Fewer reads.** Each refresh reads only what the visible tab needs; alerts check after each scheduled time and every 15 minutes.
-- **Command line.** `WarmupMenu --status` prints the verdict, today's times, health and accounts; `WarmupMenu --json` prints the same facts as JSON. Both read the engine through the stored connection and print no IDs, paths, names or emails. Exit codes: 0 all good, 1 something needs attention, 2 nothing could be read, 64 wrong arguments.
+- **Command line.** `WarmupMenu --status` prints the verdict, today's times, health and accounts; `WarmupMenu --json` prints the same facts as JSON. Both read the engine through the stored connection and print no IDs, paths, names or emails. Exit codes: 0 nothing new needs attention, 1 something needs attention, 2 nothing could be read, 64 wrong arguments. A problem already opened in the app, or a send marked reviewed, does not count: the first line still says "1 missed today" or "2 not confirmed today", and the exit code is 0.
 - **New private files** in the app's folder (0600, beside the engine connection): `account-names.json` (names) and `reviewed-sends.json` (the times marked as reviewed). Settings › Privacy › Show in Finder opens the folder.
 - **0.6.1:** Schedule's Earlier this week showed one day's results on another.
 - **Not in 0.6.0:** the Results tab, "Best right now" (F13), and Developer ID signing; the app is still signed ad hoc.

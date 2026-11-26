@@ -21,7 +21,7 @@ public struct HealthRow: Sendable, Equatable, Identifiable {
 
 public enum HealthCheck {
     /// Rows from one status reply, in the order an operator checks them. `week` adds "Last 7 days" (the
-    /// app passes its loaded report; the CLI reads no history and passes none).
+    /// app passes its loaded report; the CLI passes none, so `--status` prints no week row).
     public static func rows(
         status: EngineStatus, observedAt: Int?, wake: WakeReadiness, nextLocalAdmission: String?, now: Date = Date(),
         week: WeekReport? = nil

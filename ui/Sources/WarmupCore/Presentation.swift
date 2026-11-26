@@ -107,6 +107,19 @@ public enum Wording {
         }
     }
 
+    /// The slot-detail headline: `verdict(_:)`, except that a left-out day says why in the Schedule
+    /// list's words ("Skipped: time off", "Skipped: day off").
+    public static func slotHeadline(verdict code: String, exclusion: String?) -> String {
+        guard code == "excluded" else { return Self.verdict(code) }
+        let words =
+            switch exclusion {
+            case "vacation": "time off"
+            case "weekday", nil: "day off"
+            case let other?: Self.code(other)
+            }
+        return "Skipped: \(words)"
+    }
+
     public static func dispatch(_ code: String) -> String {
         switch code {
         case "confirmed": "Request sent"

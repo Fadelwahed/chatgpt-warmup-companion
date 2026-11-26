@@ -91,7 +91,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 /// `WarmupMenu --status` / `--json`: read-only `status`, `schedule inspect` and `history` through the
-/// stored binding, printed without IDs, paths or nicknames. Exit 0 all good, 1 needs attention, 2 unreadable.
+/// stored binding, printed without IDs, paths or nicknames.
+/// Exit 0 nothing new needs attention, 1 needs attention, 2 unreadable.
 enum StatusCommand {
     static func run(json: Bool) -> Int32 {
         guard let store = BindingStore.defaultStore(), let binding = try? store.load(),

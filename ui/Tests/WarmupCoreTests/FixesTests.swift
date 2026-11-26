@@ -182,6 +182,8 @@ import Testing
                 texts += [Wording.guidance(account.guidance)] + [account.reason.map(Wording.reason)].compactMap { $0 }
             }
         }
+        // Work order 138: the time-off and day-off detail headlines.
+        texts += ["vacation", "weekday"].map { Wording.slotHeadline(verdict: "excluded", exclusion: $0) }
         // Account text.
         let list = try #require(ReplyValidator.payload(AccountList.self, from: try Fixture.output("list")))
         for row in list.rows {

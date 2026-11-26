@@ -110,13 +110,7 @@ public enum ScheduleRowText {
 
     /// A day the schedule leaves out: "– Skipped: time off", "– Skipped: day off".
     public static func excluded(_ exclusion: String) -> String {
-        let words =
-            switch exclusion {
-            case "vacation": "time off"
-            case "weekday": "day off"
-            default: Wording.code(exclusion)
-            }
-        return "\(TodayMark.Kind.skipped.glyph) Skipped: \(words)"
+        "\(TodayMark.Kind.skipped.glyph) " + Wording.slotHeadline(verdict: "excluded", exclusion: exclusion)
     }
 
     /// The secondary label on a Today row whose time is not one of the every-day times (app 0.7.0).

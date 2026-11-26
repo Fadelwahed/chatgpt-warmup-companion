@@ -216,8 +216,8 @@ public enum StatusCLI {
         return (output + Data("\n".utf8), nil, code)
     }
 
-    /// 0 all good; 1 something needs attention (including unreviewed unresolved sends); 2 nothing could
-    /// be read (no glance).
+    /// 0 nothing new needs attention (problems already opened and reviewed sends do not count); 1 something
+    /// needs attention (including unreviewed unresolved sends); 2 nothing could be read (no glance).
     public static func exitCode(glance: Glance?, health: [HealthRow], unresolved: Int = 0) -> Int32 {
         guard let glance else { return Self.exitUnreadable }
         let good: Set<GlanceState> = [.scheduled, .running]

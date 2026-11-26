@@ -68,4 +68,12 @@ import Testing
         #expect(UnresolvedGroup.make([rows[0]], today: nil).map(\.text) == ["1 manual warm-up, no result recorded"])
         #expect(UnresolvedGroup.make([], today: nil).isEmpty)
     }
+
+    @Test func pickedDayReadsLikeTheRestOfTheApp() throws {
+        let gaza = try #require(TimeZone(identifier: "Asia/Gaza"))
+        // 2026-11-26 22:30 UTC is already Fri 27 Nov in Gaza: the words follow the picker's zone.
+        let late = Date(timeIntervalSince1970: 1_795_732_200)
+        #expect(FriendlyTime.picked(late, zone: gaza) == "Fri 27 Nov")
+        #expect(FriendlyTime.picked(late, zone: ClockTime.utc) == "Thu 26 Nov")
+    }
 }

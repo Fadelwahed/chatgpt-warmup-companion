@@ -775,6 +775,7 @@ private struct MeasurementSection: View {
                     )
                     .environment(\.timeZone, zone)
                     .environment(\.locale, Locale(identifier: "en_GB"))  // day before month, like "Fri 27 Nov"
+                    PickedDay(date: self.day(zone: zone).wrappedValue, zone: zone)
                     Button("Clear") { self.model.setCountFrom(nil) }
                         .accessibilityLabel("Clear the count from date")
                 }
@@ -786,6 +787,7 @@ private struct MeasurementSection: View {
                     )
                     .environment(\.timeZone, zone)
                     .environment(\.locale, Locale(identifier: "en_GB"))  // day before month, like "Fri 27 Nov"
+                    PickedDay(date: self.pending, zone: zone)
                     Button("Cancel") { self.choosing = false }
                     Button("Start") {
                         self.model.setCountFrom(ClockTime.day(from: self.pending, zone: zone))
@@ -1343,14 +1345,21 @@ private struct VacationSection: View {
                 // Shown in the engine's zone, the same calendar the command is encoded in.
                 let zone = self.model.status.flatMap { TimeZone(identifier: $0.schedule.zone) } ?? .current
                 let tomorrow = self.tomorrow(zone: zone)
-                DatePicker("From", selection: self.$input.start, in: tomorrow..., displayedComponents: .date)
+                HStack {
+                    DatePicker("From", selection: self.$input.start, in: tomorrow..., displayedComponents: .date)
+                        .environment(\.timeZone, zone)
+                        .environment(\.locale, Locale(identifier: "en_GB"))  // day before month, like "Fri 27 Nov"
+                    PickedDay(date: self.input.start, zone: zone)
+                }
+                HStack {
+                    DatePicker(
+                        "To", selection: self.$input.end, in: max(self.input.start, tomorrow)...,
+                        displayedComponents: .date
+                    )
                     .environment(\.timeZone, zone)
                     .environment(\.locale, Locale(identifier: "en_GB"))  // day before month, like "Fri 27 Nov"
-                DatePicker(
-                    "To", selection: self.$input.end, in: max(self.input.start, tomorrow)..., displayedComponents: .date
-                )
-                .environment(\.timeZone, zone)
-                .environment(\.locale, Locale(identifier: "en_GB"))  // day before month, like "Fri 27 Nov"
+                    PickedDay(date: self.input.end, zone: zone)
+                }
                 Button("Add Time Off") { self.model.addVacation(from: self.input.start, to: self.input.end) }
                     .modifier(ActionGate(model: self.model, help: "No scheduled warm-ups on these days, both included"))
                 Text("Time off starts tomorrow at the earliest. To stop today's warm-ups, pause scheduling.")
@@ -1749,6 +1758,18 @@ private struct UsageCellView: View {
             if let seen = cell.seen { Text(seen).font(.subheadline).foregroundStyle(.secondary).lineLimit(1) }
         }
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// "Fri 27 Nov" beside a date picker, whose system field prints digits only (0.7.1). VoiceOver skips
+/// it: the picker already speaks its date.
+private struct PickedDay: View {
+    let date: Date
+    let zone: TimeZone
+
+    var body: some View {
+        Text(FriendlyTime.picked(self.date, zone: self.zone))
+            .font(.callout).foregroundStyle(.secondary).monospacedDigit().accessibilityHidden(true)
     }
 }
 

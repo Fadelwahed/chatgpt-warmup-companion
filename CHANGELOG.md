@@ -7,6 +7,10 @@ Notable changes to Warm-up: the engine (`warmup.mjs` and its modules) and the me
 - Engine 1.2.4-offline: a scheduled send that fails on DNS or the network before anything is sent is retried up to twice; the Mac is kept awake while a batch runs.
 - `scripts/schedule-wakes.sh` books a one-time macOS wake 5 seconds into each warm-up of the next 7 days (one password prompt; `--dry-run`, `--cancel`), replacing only the wakes it booked before.
 
+### App 0.7.1
+
+- **Date pickers.** The time-off and start-date pickers show the day in words beside them ("Fri 27 Nov"); the system field itself prints digits only.
+
 ### App 0.7.0
 
 - **Honest headline.** After a missed or unconfirmed warm-up today has been seen, the headline reads "Next 13:10 · 1 missed today" instead of returning to "All good". Health shows how many of the last 7 days' warm-ups were confirmed.

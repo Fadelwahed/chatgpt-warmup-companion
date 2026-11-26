@@ -17,6 +17,12 @@ public enum FriendlyTime {
         return self.formatter("EEE d MMM").string(from: parsed)
     }
 
+    /// "Fri 27 Nov" for a date picker's value in `zone`, shown beside the picker: the system field
+    /// prints digits only ("27/11/2026"), so the words carry the app's usual form (app 0.7.1).
+    public static func picked(_ date: Date, zone: TimeZone) -> String {
+        self.day(ClockTime.day(from: date, zone: zone), today: nil)
+    }
+
     /// "Today 08:00", "Yesterday 18:00", "Mon 16 Nov 08:00". The time is the minute the slot runs
     /// (`runs`, app 0.6.9), else the label's own.
     public static func slot(_ slot: String, today: String?, runs: RunTimes = .none) -> String {

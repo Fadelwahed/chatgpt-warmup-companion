@@ -192,7 +192,7 @@ public enum EffectReport {
     ) -> String {
         let since = upcoming ? "starts" : "since"
         let period = countFromLabel.map { "\(since) \($0)" } ?? "last \(Self.periodDays) days"
-        var lines = ["Did it help? (\(period))", summary.verdict]
+        var lines = ["Did it help? (\(period))", Self.headline(summary, upcoming: upcoming)]
         lines.append(EffectProgress.text(clear: summary.clear, countFromLabel: countFromLabel, upcoming: upcoming))
         if let countFromLabel, !upcoming { lines.append("Counting from \(countFromLabel)") }
         lines += summary.lines

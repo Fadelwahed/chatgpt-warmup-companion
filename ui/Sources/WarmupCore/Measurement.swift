@@ -78,6 +78,13 @@ extension EffectReport {
     public static let starts = "Decision period starts on the date below. Nothing is counted before then."
     /// How many days ahead the "count from" date can be picked (work order 146).
     public static let maxDaysAhead = 31
+    /// The "Did it help?" headline while the start date is still ahead (work order 147).
+    public static let notCountingYet = "Not counting yet."
+
+    /// The "Did it help?" headline: `notCountingYet` while the start date is ahead, else the verdict.
+    public static func headline(_ summary: EffectSummary, upcoming: Bool) -> String {
+        upcoming ? Self.notCountingYet : summary.verdict
+    }
 
     /// The Settings status line: not set, set but still ahead of `now`, or started (all in ms).
     public static func measurementLine(countFrom: Int?, now: Int) -> String {

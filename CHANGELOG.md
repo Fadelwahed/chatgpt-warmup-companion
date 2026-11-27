@@ -16,6 +16,11 @@ Notable changes to Warm-up: the engine (`warmup.mjs` and its modules) and the me
 - `scripts/repin-router.sh` re-pins codex-router after it updates itself; it stops on a changed pinned file unless given a review note.
 - The repo pins codex-router 85491891, the revision reviewed on 26 Nov.
 
+### App 0.7.10
+
+- Before the start day, the "Did it help?" headline reads "Not counting yet." instead of "No warm-up with usage data seen yet."
+- `scripts/repin-router.sh` reads codex-router's folder from the engine's `config.json`; it no longer reads `CODEX_ROUTER_SOURCE`.
+
 ### App 0.7.9
 
 - The "Did it help?" start date can be set up to 31 days ahead; until then Overview says when counting starts.

@@ -483,7 +483,7 @@ private struct EffectSection: View {
     var body: some View {
         let summary = self.effect.summary
         Section {
-            Text(summary.verdict).font(.headline)
+            Text(EffectReport.headline(summary, upcoming: self.effect.countFromUpcoming)).font(.headline)
             VStack(alignment: .leading, spacing: 4) {
                 ProgressView(value: self.effect.progressFraction)
                     .controlSize(.small)

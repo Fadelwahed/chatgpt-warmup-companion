@@ -287,4 +287,39 @@ import Testing
         #expect(!text.contains("since 1 Dec"))
         #expect(!text.contains("Counting from"))
     }
+
+    // MARK: - Work order 147: the headline before the start day
+
+    @Test func headlineBeforeTheStartDay() {
+        let empty = EffectReport.summary(UsageLog(rows: []), order: ["a"], now: Self.eight)
+        let log = UsageLog(rows: [Measurement.fresh(at: Self.eight - Self.hour)])
+        let seen = EffectReport.summary(log, order: ["a"], now: Self.eight)
+        #expect(seen.total == 1)
+        #expect(EffectReport.headline(empty, upcoming: true) == "Not counting yet.")
+        #expect(EffectReport.headline(seen, upcoming: true) == "Not counting yet.")
+        #expect(EffectReport.headline(empty, upcoming: false) == empty.verdict)
+        #expect(EffectReport.headline(empty, upcoming: false) == "No warm-up with usage data seen yet.")
+        #expect(EffectReport.headline(seen, upcoming: false) == seen.verdict)
+        #expect(EffectReport.headline(seen, upcoming: false) != "Not counting yet.")
+    }
+
+    @Test func notCountingYetUsesPlainWords() {
+        #expect(EffectReport.notCountingYet == "Not counting yet.")
+        #expect(Fixes051.offending([EffectReport.notCountingYet]) == [])
+        let text = EffectReport.notCountingYet
+        let range = NSRange(text.startIndex..., in: text)
+        #expect(Fixes051.forbidden.firstMatch(in: text, range: range) == nil)
+    }
+
+    @Test func copiedTextHeadlineBeforeTheStartDay() {
+        let summary = EffectReport.summary(
+            UsageLog(rows: []), order: ["a"], now: Self.eight, countFrom: Measurement.midnight + Self.day)
+        let lines = EffectReport.text(summary, countFromLabel: "1 Dec", upcoming: true)
+            .components(separatedBy: "\n")
+        #expect(lines.count > 1)
+        #expect(lines.dropFirst().first == "Not counting yet.")
+        let text = lines.joined(separator: "\n")
+        #expect(!text.contains("No warm-up with usage data"))
+        #expect(text.components(separatedBy: "Counting starts").count == 2)
+    }
 }

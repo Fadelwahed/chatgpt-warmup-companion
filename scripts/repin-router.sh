@@ -13,7 +13,6 @@ export PATH=/usr/bin:/bin:/usr/sbin:/sbin
 
 NODE=${WARMUP_NODE:-/opt/homebrew/opt/node@22/bin/node}
 ROOT=${WARMUP_ROOT:-$HOME/.local/share/codex-router-warmup}
-ROUTER=${CODEX_ROUTER_SOURCE:-$HOME/.local/share/codex-router}
 USAGE="usage: repin-router.sh [--dry-run] [--accept-changed NOTE], or repin-router.sh --self-test"
 MAX_NOTE=300
 
@@ -31,6 +30,13 @@ const digests = (record, router) => Object.fromEntries(Object.keys(record.source
 }));
 if (mode === "names") console.log(Object.keys(read(args[0]).sourceDigests).join(" "));
 else if (mode === "revision") console.log(read(args[0]).reviewedRevision);
+else if (mode === "source") {
+  // The codex-router folder named in the engine config.json: a non-empty absolute path, or exit 1.
+  let root;
+  try { root = read(args[0]).paths.sourceRoot; } catch { process.exit(1); }
+  if (typeof root !== "string" || root === "" || !path.isAbsolute(root)) process.exit(1);
+  console.log(root);
+}
 else if (mode === "changed") {
   const record = read(args[0]), now = digests(record, args[1]);
   console.log(Object.keys(now).filter(name => now[name] !== record.sourceDigests[name]).join(" "));
@@ -91,7 +97,8 @@ repin() {
   COMPAT=$ROOT/compatibility.json CONFIG=$ROOT/config.json
   [ -f "$COMPAT" ] || fail "$COMPAT not found."
   [ -f "$CONFIG" ] || fail "$CONFIG not found."
-  [ -d "$ROUTER" ] || fail "codex-router not found at $ROUTER (set CODEX_ROUTER_SOURCE)."
+  ROUTER=$("$NODE" -e "$JS" source "$CONFIG") || fail "could not read codex-router's folder from $CONFIG."
+  [ -d "$ROUTER" ] || fail "codex-router not found at $ROUTER (the folder the engine's config names)."
   HEAD=$(gitr rev-parse HEAD 2>/dev/null) || fail "$ROUTER is not a Git checkout of codex-router."
 
   OLD=$("$NODE" -e "$JS" revision "$COMPAT") || fail "could not read $COMPAT."
@@ -226,7 +233,8 @@ self_test() {
   tgit commit -q -m pinned
   pinned=$(tgit rev-parse HEAD)
 
-  printf '{"placeholder":true}\n' > "$root/config.json"
+  "$NODE" -e 'require("fs").writeFileSync(process.argv[2], JSON.stringify({ paths: { sourceRoot: process.argv[1] } }) + "\n");' \
+    "$router" "$root/config.json"
   "$NODE" -e '
 const fs = require("fs"), path = require("path"), crypto = require("crypto");
 const [repo, router, head, out] = process.argv.slice(1);
@@ -269,7 +277,7 @@ STUB
     rm -rf "$stubdir"
     mkdir -p "$stubdir"
     : > "$stubdir/calls.log"
-    out=$(env WARMUP_NODE="$NODE" WARMUP_ROOT="$root" CODEX_ROUTER_SOURCE="$router" REPIN_STUB="$stub" \
+    out=$(env WARMUP_NODE="$NODE" WARMUP_ROOT="$root" REPIN_STUB="$stub" \
       REPIN_STUB_DIR="$stubdir" "$SELF" "$@" 2>&1) && rc=0 || rc=$?
   }
   calls() { sed 's#^maintain --file /.*/candidate\.json$#maintain --file <abs>#' "$stubdir/calls.log" | tr '\n' ';'; }
@@ -277,18 +285,32 @@ STUB
   candidate_ok() {  # expected revision, then text the evidence must contain
     [ -f "$stubdir/candidate.json" ] && [ "$(cat "$stubdir/folder")" = resolved ] && "$NODE" -e '
 const fs = require("fs");
-const [file, head, want] = process.argv.slice(1);
+const [file, head, want, router] = process.argv.slice(1);
 const c = JSON.parse(fs.readFileSync(file, "utf8"));
 const ok = JSON.stringify(Object.keys(c)) === JSON.stringify(["schemaVersion", "config", "compatibility", "reviewEvidence"])
-  && c.schemaVersion === 1 && JSON.stringify(c.config) === JSON.stringify({ placeholder: true })
+  && c.schemaVersion === 1 && JSON.stringify(c.config) === JSON.stringify({ paths: { sourceRoot: router } })
   && Object.keys(c.compatibility.sourceDigests).length === 13 && c.reviewEvidence === c.compatibility.reviewEvidence
   && c.compatibility.reviewedRevision === head && c.compatibility.semantics === "equivalent" && c.reviewEvidence.includes(want);
-process.exit(ok ? 0 : 1);' "$stubdir/candidate.json" "$1" "$2"
+process.exit(ok ? 0 : 1);' "$stubdir/candidate.json" "$1" "$2" "$router"
   }
 
   # (a) At the pinned commit.
   run on
   check "a: at the pinned commit says Already pinned" eval '[ "$rc" = 0 ] && has "$out" "Already pinned to $(short "$pinned")." && no_calls'
+
+  # (k) CODEX_ROUTER_SOURCE is ignored: the engine's config.json names codex-router's folder.
+  export CODEX_ROUTER_SOURCE="$tmp/missing"
+  run on
+  unset CODEX_ROUTER_SOURCE
+  check "k: CODEX_ROUTER_SOURCE is ignored" eval '[ "$rc" = 0 ] && has "$out" "Already pinned to $(short "$pinned")." && no_calls'
+
+  # (l) A config.json without paths.sourceRoot stops before any engine call.
+  cp "$root/config.json" "$tmp/config.json"
+  printf '{"paths":{}}\n' > "$root/config.json"
+  run on
+  cp "$tmp/config.json" "$root/config.json"
+  no_source="could not read codex-router's folder from $root/config.json."
+  check "l: a config.json without the router folder stops" eval '[ "$rc" = 1 ] && has "$out" "$no_source" && no_calls'
 
   # (b) A commit touching only an unpinned file.
   printf 'unpinned, edited\n' > "$router/README.md"

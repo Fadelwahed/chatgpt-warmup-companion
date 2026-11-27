@@ -12,6 +12,14 @@ A native macOS menu-bar companion for the existing Warm-up CLI. The CLI and its 
 - **Schedule:** today plus six days from `schedule inspect`, with weekday exclusions, repeated or nonexistent DST minutes and the next admission. Selecting a slot runs `schedule inspect --slot`. The detail separates whether a request was sent, whether a response was confirmed and the guidance. It always shows "Usage window effect unverified". **Copy redacted summary** copies reason codes and times only: no installation ID, account IDs or tokens.
 - **Accounts:** rows from `list`, which reads Router's registry without credentials or network.
 
+## Version 0.7.10 (27 November 2026): a clear headline before the start day
+
+Built from work order 147.
+
+- **Headline.** Before the start day, "Did it help?" on Overview and in the copied text reads "Not counting yet." instead of "No warm-up with usage data seen yet."
+- **Re-pin.** `scripts/repin-router.sh` reads codex-router's folder from the engine's `config.json`, the folder the engine checks; it no longer reads `CODEX_ROUTER_SOURCE`.
+- **Tests.** 371 Swift tests pass (368 before). Not yet seen on screen.
+
 ## Version 0.7.9 (27 November 2026): a start date ahead of time
 
 Built from work order 146.

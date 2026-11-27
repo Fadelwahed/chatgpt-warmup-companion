@@ -189,8 +189,8 @@ import Testing
     /// Work order 137: the lid caption sits only under the "Wakes booked through" line (wording: work order 140).
     @Test func wakeCaptionOnlyWithTheBookedThroughLine() {
         let caption =
-            "A booked wake works with the lid open. On battery with the lid closed, the Mac sleeps again within "
-            + "seconds."
+            "A booked wake works with the lid open, or closed while the Mac is plugged in. On battery with the lid "
+            + "closed, the Mac sleeps again within seconds."
         let booked = WakePlan(bySlot: [:], lastBookedDay: "2026-12-02", hasRepeating: false)
         #expect(ScheduleWakeText.summary(plan: booked, scheduleEnabled: true) == "Wakes booked through Wed 2 Dec.")
         #expect(ScheduleWakeText.caption(plan: booked, scheduleEnabled: true) == caption)

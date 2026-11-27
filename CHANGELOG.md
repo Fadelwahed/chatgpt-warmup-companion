@@ -11,6 +11,10 @@ Notable changes to Warm-up: the engine (`warmup.mjs` and its modules) and the me
 - `scripts/wake-test.sh` tests whether a booked wake with the lid closed stays awake long enough for a warm-up: four `waketest` wakes, a detached watcher, and `--report` against `pmset -g log` (`--dry-run`, `--cancel`, `--self-test`).
 - `scripts/wake-test.sh --quick`: one test wake with every hold at once, about 5 minutes per run.
 
+### App 0.7.6
+
+- The wake wording says a booked wake also works with the lid closed while the Mac is plugged in (27 Nov 08:00 check).
+
 ### App 0.7.5
 
 - Help says the schedule-wakes script books wakes for 4 weeks at a time; the wake-expiry alert and the Schedule pane's wake note say "the next 4 weeks" instead of 7 days.

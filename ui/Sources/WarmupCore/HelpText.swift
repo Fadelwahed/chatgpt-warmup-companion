@@ -34,8 +34,9 @@ public enum HelpText {
                 heading: "When warm-ups run",
                 body: "The Mac must be awake at each time. A time that passes while the Mac is asleep or off is "
                     + "missed, and Warm-up never sends it late. Schedule shows whether a wake is booked for each coming "
-                    + "time. A booked wake works with the lid open. On battery with the lid closed, macOS lets the "
-                    + "Mac sleep again within about 30 seconds, which is usually too short for a warm-up. The "
+                    + "time. A booked wake works with the lid open, or closed while the Mac is plugged in. On "
+                    + "battery with the lid closed, macOS lets the Mac sleep again within about 30 seconds, which "
+                    + "is usually too short for a warm-up. The "
                     + "schedule-wakes script in the Warm-up repository books them for 4 weeks at a time; "
                     + "with alerts on, Warm-up tells you the day before they run out."
             ),

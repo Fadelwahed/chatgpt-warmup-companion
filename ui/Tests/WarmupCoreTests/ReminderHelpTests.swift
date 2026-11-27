@@ -162,8 +162,9 @@ import Testing
     }
 
     static let lidSentence =
-        "A booked wake works with the lid open. On battery with the lid closed, macOS lets the Mac sleep again "
-        + "within about 30 seconds, which is usually too short for a warm-up."
+        "A booked wake works with the lid open, or closed while the Mac is plugged in. On battery with the lid "
+        + "closed, macOS lets the Mac sleep again within about 30 seconds, which is usually too short for a "
+        + "warm-up."
     static let menuBarSentence =
         "If the Warm-up icon is missing from the menu bar, look in the hidden section, or in System Settings under "
         + "Menu Bar."

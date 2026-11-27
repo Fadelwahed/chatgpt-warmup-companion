@@ -32,8 +32,8 @@ import Testing
     @Test func nothingRanUsesTheSleepNoteAndKeepsTheJobHint() {
         let what = "Nothing ran at that minute; the reason was not recorded."
         let awake =
-            "Keep the Mac awake at warm-up times. A booked wake works with the lid open; on battery with the lid "
-            + "closed, the Mac sleeps again within seconds."
+            "Keep the Mac awake at warm-up times. A booked wake works with the lid open, or closed while the Mac is "
+            + "plugged in; on battery with the lid closed, the Mac sleeps again within seconds."
         for good in [true, false] {
             #expect(self.lines("no_tick_between", now: good) == [what, awake])
             #expect(self.lines("no_tick_between", now: good, asleep: Self.sleep) == [what, Self.sleep, awake])
@@ -51,12 +51,14 @@ import Testing
 
     /// Work order 137: a booked wake can fail with the lid closed, so the advice no longer offers it as
     /// the remedy on its own. Work order 140: it says what the lid-closed test showed, not "may".
+    /// Work order 143: a closed lid works while the Mac is plugged in (27 Nov 08:00 check).
     @Test func nothingRanAdviceNamesTheLidNotJustBookedWakes() {
         for good in [true, false] {
             for job in [true, nil] as [Bool?] {
                 let toDo = self.lines("no_tick_between", now: good, job: job).last ?? ""
                 #expect(!toDo.contains("or book wakes"))
                 #expect(toDo.contains("lid"))
+                #expect(toDo.contains("plugged in"))
                 #expect(toDo.contains("battery"))
                 #expect(!toDo.contains("may"))
             }

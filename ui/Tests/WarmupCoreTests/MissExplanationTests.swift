@@ -25,7 +25,7 @@ import Testing
         #expect(
             self.lines("compatibility_blocked", now: false) == [
                 what, "Router still needs a review; scheduled warm-ups are skipped until then.",
-                "Review the change and re-pin codex-router.",
+                "Run repin-router from the Warm-up repository.",
             ])
     }
 

@@ -76,7 +76,8 @@ public enum Wording {
         case "run_manual_pilot": "Run one manual warm-up for this account so it can be scheduled."
         case "review_account_block": "The account is blocked after a provider response. Review it before scheduling resumes."
         case "wait_for_cooldown": "The account is cooling down. It will be eligible again after the recorded time."
-        case "review_source_compatibility": "Router source compatibility needs review before scheduled runs resume."
+        case "review_source_compatibility":
+            "codex-router changed. Run repin-router from the Warm-up repository; scheduled warm-ups resume after that."
         case "reconcile_job_state": "The background job and the schedule setting disagree. Pause and resume scheduling."
         case "resume_schedule_if_intended": "Scheduling was paused. Resume it if that was not intended."
         case "check_job_and_mac_awake": "No check-in was recorded at this minute. Check that the job is loaded; the cause is not recorded."
@@ -187,9 +188,11 @@ public enum GlanceBuilder {
         // Possible sends without a result live in Needs attention and the menu, not in the hero.
         var notes: [String] = []
         var symbol: String?
-        // One line of advice for states that need the operator; none guesses a cause.
+        // One line of advice for states that need the operator (work order 144: the router note names the usual cause).
         if status.compatibility != "ready" {
-            notes.append("codex-router changed. Scheduled warm-ups are skipped until it is reviewed.")
+            notes.append(
+                "codex-router changed, usually after Update or Restart in its menu. Scheduled warm-ups are skipped "
+                    + "until you run repin-router from the Warm-up repository.")
         } else if status.clockHold != nil {
             notes.append("Check the Mac's date and time. Scheduling resumes once the clock passes its last reading.")
         } else if status.scheduleEnabled, status.job != "loaded" {

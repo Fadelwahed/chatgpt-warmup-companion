@@ -350,7 +350,9 @@ import Testing
                 $0["compatibilityBlockedSince"] = since.map { $0 as Any } ?? NSNull()
             }
         }
-        let note = "codex-router changed. Scheduled warm-ups are skipped until it is reviewed."
+        let note =
+            "codex-router changed, usually after Update or Restart in its menu. Scheduled warm-ups are skipped until "
+            + "you run repin-router from the Warm-up repository."
         let cases: [(Int?, String)] = [
             (today, "Blocked since 05:00: Router needs a review"),
             (earlier, "Blocked since 22:10 yesterday: Router needs a review"),

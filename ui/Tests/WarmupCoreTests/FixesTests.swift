@@ -168,6 +168,8 @@ import Testing
                 plan: WakePlan(bySlot: [:], lastBookedDay: "2026-12-02", hasRepeating: false), scheduleEnabled: true)
         ].compactMap { $0 }
         texts += HelpText.sections.flatMap { [$0.heading, $0.body] }
+        // Work order 144: the router advice and the alert body.
+        texts += [Wording.guidance("review_source_compatibility"), CompatibilityAlert.content().body]
         // Slot detail.
         for name in ["slot-admitted", "slot-uncertain", "slot-unobserved", "slot-no-tick"] {
             let result = try #require(

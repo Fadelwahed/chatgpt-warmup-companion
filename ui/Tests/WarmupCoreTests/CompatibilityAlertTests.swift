@@ -135,7 +135,11 @@ import Testing
     @Test func contentNamesNoPathHashOrRevision() throws {
         let text = CompatibilityAlert.content()
         #expect(text.title == "Warm-up is blocked")
-        #expect(text.body == "codex-router changed and needs a review. Upcoming warm-ups will be skipped until then.")
+        #expect(
+            text.body
+                == "codex-router changed, usually after Update or Restart in its menu. Upcoming warm-ups will be "
+                + "skipped until you run repin-router.")
+        #expect(text.body.contains("repin-router"))
         let hex = try Regex("[0-9a-fA-F]{40}")
         for part in [text.title, text.body] {
             #expect(!part.contains("/"))

@@ -186,6 +186,30 @@ import Testing
         #expect(ScheduleRowText.todayOnly(admission: added, projection: nil, now: now) == nil)
     }
 
+    /// Work order 144: an every-day time moved for today (13:00 runs at 13:10) is labelled while upcoming.
+    @Test func todayOnlyForATimeMovedForToday() throws {
+        let moved = Self.at1300 + 10 * 60_000
+        let projection = try self.projection { object in
+            guard var days = object["days"] as? [[String: Any]],
+                var admissions = days[0]["admissions"] as? [[String: Any]],
+                let index = admissions.firstIndex(where: { $0["logicalTime"] as? String == "13:00" })
+            else { return }
+            admissions[index]["admission"] = "13:10"
+            admissions[index]["at"] = moved
+            admissions[index]["state"] = "upcoming"
+            days[0]["admissions"] = admissions
+            object["days"] = days
+        }
+        #expect(projection.times.contains("13:00"))
+        let today = try #require(projection.days.first { $0.date == projection.localDate }?.admissions)
+        let shifted = try #require(today.first { $0.logicalTime == "13:00" })
+        #expect(shifted.admission == "13:10")
+        let before = Self.at1300 - 60_000
+        #expect(ScheduleRowText.todayOnly(admission: shifted, projection: projection, now: before) == "today only")
+        // Once its minute has passed, the moved time is no longer labelled.
+        #expect(ScheduleRowText.todayOnly(admission: shifted, projection: projection, now: moved + 60_000) == nil)
+    }
+
     /// Work order 137: the lid caption sits only under the "Wakes booked through" line (wording: work order 140).
     @Test func wakeCaptionOnlyWithTheBookedThroughLine() {
         let caption =

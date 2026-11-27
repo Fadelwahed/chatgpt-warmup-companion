@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "reviewedRevision": "7e7350e7b579b8b5b2085ee4bafc216c13e2c6d9",
+  "reviewedRevision": "8549189105c64d22a0503c37bb73316a22edfbcb",
   "sourceDigests": {
     "src/paths.mjs": "de6f271f7871c256c6c8b54383973bc30f2d5ed5638f5deac6c51f41ad45939e",
     "src/chatgpt-account-pool.mjs": "435eb153a49487414d02c2f4b1eb0de92a693a9a53793caeff7861d09d8bf624",
@@ -9,7 +9,7 @@
     "src/discovery-mode.mjs": "3d75e5df2166c10cca44de6f3bbe573a0deb53a4fa2f54ce30b9c7418f0770be",
     "src/codex-maintenance.mjs": "a10e01c4ec272089f6f92c0a172d0a8aa8995410896b19f4f88f441dc588007e",
     "src/update.mjs": "c970fdcbb56ba714a347f2f7de9bbd4e214862342e2153cf131110598ffd2c18",
-    "bin/install": "ca58c84ea41a23ddc1c618f3c576ac836db0773a743e1dd2f09d1574a18c6a0b",
+    "bin/install": "611083726ae64c92c9814381e57880bc1ed1231558c3206a24bb14a00a158ba0",
     "src/catalog-publication-lock.mjs": "fc21584a18cbc229216314401c62524970333956a1649df3e40a7523c37e9f73",
     "src/codex-native-session.mjs": "26e63a86080a1adf3b891ce6ef0d48ffc0bf0ffeee5e6c5cfaed98a2732b7ecd",
     "src/install-manifest.mjs": "a8e5709d092c7966c603179d7cd51cf5e689fa9b8b6dbae6dc8087faa9a0a285",
@@ -18,7 +18,7 @@
   },
   "adapterVersion": 1,
   "requestContractVersion": 1,
-  "sourcePathContract": "Default codex-router install paths; see docs/ENGINE-REFERENCE.md",
-  "reviewEvidence": "codex-router revision 7e7350e7 reviewed for Warm-up engine 1.2.0",
+  "sourcePathContract": "docs/SOURCE-CONTRACT-MAP.md; Stage F explicit default bindings independently verified 2026-11-15",
+  "reviewEvidence": "2026-11-26 router 85491891 re-pin: bin/install npm-lookup only (bd5bc183), 12/13 digests unchanged, semantics equivalent; docs/2026-11-26-ROUTER-8549189-BIN-INSTALL-REVIEW.md",
   "semantics": "equivalent"
 }

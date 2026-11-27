@@ -34,13 +34,13 @@ It has two parts:
 
   You don't need to link it or put it on your `PATH`. The engine is always called through its full path.
 
-- **codex-router at revision `7e7350e7`**, installed in its default folder (`~/.local/share/codex-router`), with at least one ChatGPT account signed in. The engine reads 13 of codex-router's source files directly and checks each against a recorded SHA-256 digest ([`compat/compatibility.json`](compat/compatibility.json)). It refuses to run against any other version (`unreviewed_source`). Install codex-router by following its own README, then pin it:
+- **codex-router at revision `85491891`**, installed in its default folder (`~/.local/share/codex-router`), with at least one ChatGPT account signed in. The engine reads 13 of codex-router's source files directly and checks each against a recorded SHA-256 digest ([`compat/compatibility.json`](compat/compatibility.json)). It refuses to run against any other version (`unreviewed_source`). Install codex-router by following its own README, then pin it:
 
   ```sh
-  git -C ~/.local/share/codex-router checkout 7e7350e7b579b8b5b2085ee4bafc216c13e2c6d9
+  git -C ~/.local/share/codex-router checkout 8549189105c64d22a0503c37bb73316a22edfbcb
   ```
 
-  If you update codex-router later and those files change, warm-ups stop until this project publishes a new compatibility record.
+  codex-router updates itself when you click Update or Restart in its menu. Warm-up then skips scheduled warm-ups until you run `scripts/repin-router.sh` (see "After a codex-router update").
 
 - **For the app only:** a Swift 6.2 or later toolchain (Xcode 26 or later, or the matching Command Line Tools).
 
@@ -223,6 +223,19 @@ To install a newer engine without losing its state or history:
 
 If `outcome` isn't `ready`, leave the schedule paused, copy the files from `~/warmup-backup` back and open an issue. If only `compatibility` is `blocked`, the new release supports a different codex-router revision. Its release notes then explain how to apply the new `compat/compatibility.json` with `warmup maintain` ([engine reference](docs/ENGINE-REFERENCE.md#maintenance-candidate)). After any engine update, link the app again ([Install the app](#install-the-app), steps 1 and 2). To update the app, quit it, run `Scripts/package_app.sh "$HOME/Applications"` again and reopen it.
 
+### After a codex-router update
+
+Clicking Update or Restart in codex-router's menu updates codex-router to a newer revision. Warm-up then no longer matches its pinned record: it skips scheduled warm-ups and, with alerts on, tells you once. Run `--dry-run` first to see what moved, then re-pin:
+
+```sh
+scripts/repin-router.sh --dry-run
+scripts/repin-router.sh
+```
+
+The script hashes the 13 codex-router files the engine reads and compares them with the installed record. When none of them changed, it pauses scheduling, applies a new record for the current revision with `warmup maintain` (noting the commit count in the review evidence) and resumes scheduling if it was on. Then copy the installed `compatibility.json` into `compat/` here, as it prints.
+
+If a pinned file changed, the script stops and prints the diff summary. Read the diff, then rerun it with `--accept-changed "what you checked"` (one line, up to 300 characters); the note goes into the record.
+
 ## Uninstall
 
 ```sh
@@ -237,7 +250,7 @@ warmup remove
 | `reason` | What it means | What to do |
 |---|---|---|
 | `node_runtime_unqualified` | Node isn't Homebrew `node@22` at `/opt/homebrew/opt/node@22` | `brew install node@22` |
-| `unreviewed_source` | codex-router's files differ from the reviewed revision | Check out `7e7350e7` (see [Requirements](#requirements)) |
+| `unreviewed_source` | codex-router's files differ from the reviewed revision | Check out `85491891` (see [Requirements](#requirements)) or run `scripts/repin-router.sh` |
 | `incomplete_initialization` | `setup` hasn't run yet, or a first `setup` stopped partway | If `setup` has never run, run it. If it stopped partway, start over as described below |
 | `registry_blocked` | codex-router was busy or its account list couldn't be read during `setup` | Let codex-router finish what it's doing, then start over as described below |
 | `job_ownership_unknown`, `existing_job_or_plist` | A LaunchAgent named `local.codex-router-warmup` already exists | Remove the old install first (`warmup remove` from it) |

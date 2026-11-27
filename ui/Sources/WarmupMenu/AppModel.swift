@@ -31,6 +31,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var projectionIssue: String?
     @Published private(set) var bindingIssue: BindingIssue?
     @Published private(set) var refreshing = false
+    /// Counts Settings window closings, so an open start-date picker closes with it (work order 144).
+    @Published private(set) var settingsClosings = 0
     @Published var selectedSlot: String? {
         didSet { if self.selectedSlot != oldValue { self.selectedDetailFailed = false } }
     }
@@ -279,6 +281,9 @@ final class AppModel: ObservableObject {
         if tab == .accounts { self.accountsAppeared = true }
         Task { await self.refreshAll() }
     }
+
+    /// The Settings window closed: an open start-date picker closes with it (work order 144).
+    func settingsClosed() { self.settingsClosings += 1 }
 
     /// Marks the latest problem as seen once its explanation has loaded and is on screen.
     private func acknowledge(_ slot: String) {

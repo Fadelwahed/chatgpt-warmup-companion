@@ -6,7 +6,7 @@ Swift package `WarmupMenu`: targets `WarmupCore` (logic, tested), `WarmupMenu` (
 
 - Toolchain: Xcode-beta (`xcode-select -p` → `/Applications/Xcode-beta.app/Contents/Developer`). With it, `swift test` needs no plugin-path flags.
 - Build: `swift build` (or MobileBuildMCP `swift_package_build`, packagePath = this folder).
-- Test: `Scripts/test.sh` / `swift test` (or MobileBuildMCP `swift_package_test`). All Swift Testing tests must pass (362 on 2026-11-27, app 0.7.6).
+- Test: `Scripts/test.sh` / `swift test` (or MobileBuildMCP `swift_package_test`). All Swift Testing tests must pass (364 on 2026-11-27, app 0.7.7).
 - `WarmupMenu --status` / `--json` read the live engine: never run them in tests or from a dev build without Fadel's OK.
 - Stage the app: `Scripts/package_app.sh /ABSOLUTE/OUT`. It signs ad hoc and never installs or launches.
 - After building or testing in the checkout, delete `ui/.build` so the tree matches its recorded hashes.

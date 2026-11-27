@@ -12,6 +12,16 @@ A native macOS menu-bar companion for the existing Warm-up CLI. The CLI and its 
 - **Schedule:** today plus six days from `schedule inspect`, with weekday exclusions, repeated or nonexistent DST minutes and the next admission. Selecting a slot runs `schedule inspect --slot`. The detail separates whether a request was sent, whether a response was confirmed and the guidance. It always shows "Usage window effect unverified". **Copy redacted summary** copies reason codes and times only: no installation ID, account IDs or tokens.
 - **Accounts:** rows from `list`, which reads Router's registry without credentials or network.
 
+## Version 0.7.7 (27 November 2026): router re-pin and small fixes
+
+Built from work order 144.
+
+- **Router wording.** When codex-router changes, the headline note, the alert, the missed-time advice and Help name the usual cause (Update or Restart in codex-router's menu) and the fix: run repin-router from the Warm-up repository. The headline "Router needs a review" is unchanged.
+- **Wake marks.** Opening Schedule reads the booked wakes again, so its wake marks are never minutes old.
+- **Moved times.** An every-day time moved for today only (for example 13:00 running at 13:10) now carries "today only" until it has run.
+- **Start date.** An open start-date picker in Settings closes when the Settings window closes.
+- **Tests.** 364 Swift tests pass (362 before). Not yet seen on screen.
+
 ## Version 0.7.6 (27 November 2026): plugged in counts
 
 Built from work order 143.

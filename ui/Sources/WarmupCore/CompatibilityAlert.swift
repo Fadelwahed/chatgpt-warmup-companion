@@ -66,7 +66,8 @@ public enum CompatibilityAlert {
     public static func content() -> (title: String, body: String) {
         (
             title: "Warm-up is blocked",
-            body: "codex-router changed and needs a review. Upcoming warm-ups will be skipped until then."
+            body: "codex-router changed, usually after Update or Restart in its menu. Upcoming warm-ups will be "
+                + "skipped until you run repin-router."
         )
     }
 }

@@ -89,7 +89,7 @@ public enum ReadPlan {
         {
             reads.insert(.list)
         }
-        if first || explicit || previous?.next != current.next
+        if first || explicit || previous?.next != current.next || context.scheduleBecameVisible
             || Self.due(context.lastWake, every: Self.wakeInterval, now: context.now)
         {
             reads.insert(.wake)

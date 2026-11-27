@@ -806,6 +806,7 @@ private struct MeasurementSection: View {
             }
             Text(EffectReport.stopRule).font(.callout)
         }
+        .onChange(of: self.model.settingsClosings) { self.choosing = false }
     }
 
     private var zone: TimeZone {

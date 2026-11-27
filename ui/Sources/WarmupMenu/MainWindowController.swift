@@ -268,6 +268,7 @@ final class MainWindowController: NSObject, NSWindowDelegate {
         // The closing window still reports visible here: leave it out of every check below.
         self.closing = notification.object as? NSWindow
         defer { self.closing = nil }
+        if (notification.object as? NSWindow) === self.settingsWindow { self.model.settingsClosed() }
         self.updateRefreshTimer()
         // A minimized window is still open, so the app stays regular for it (its polling stops anyway).
         let anyOpen = [self.window, self.settingsWindow, self.help.window].contains { window in

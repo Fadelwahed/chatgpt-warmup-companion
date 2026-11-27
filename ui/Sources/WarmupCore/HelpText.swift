@@ -48,8 +48,9 @@ public enum HelpText {
                 heading: "Pausing",
                 body: "Pause Scheduling stops automatic warm-ups until you resume; Warm Up Now still sends one when "
                     + "you ask. With alerts on, Warm-up reminds you once a day while scheduling stays paused for "
-                    + "more than a day. If codex-router changes and Warm-up needs a review before it can send, "
-                    + "automatic warm-ups are skipped until then; with alerts on, Warm-up tells you right away, once "
+                    + "more than a day. If codex-router changes (Update and Restart in its menu both update it), "
+                    + "automatic warm-ups are skipped until you run repin-router from the Warm-up repository, which "
+                    + "checks the change and accepts it; with alerts on, Warm-up tells you right away, once "
                     + "each time it happens."
             ),
             (

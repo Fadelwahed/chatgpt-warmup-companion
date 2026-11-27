@@ -21,7 +21,7 @@ public enum MissExplanation {
                 ready
                     ? "Router is compatible again."
                     : "Router still needs a review; scheduled warm-ups are skipped until then.",
-                ready ? Self.nothingToDo : "Review the change and re-pin codex-router.",
+                ready ? Self.nothingToDo : "Run repin-router from the Warm-up repository.",
             ]
         case "no_tick_between":
             // Only a job not seen afterwards keeps the engine's hint to check the job. On battery with the lid

@@ -59,12 +59,25 @@ import Testing
         #expect(history == [.history])
     }
 
+    /// Work order 144: opening Schedule reads the wake marks even when the last wake read is 1 minute old.
+    @Test func scheduleOpeningReadsTheWakeMarks() throws {
+        let status = try self.status()
+        for visible in [true, false] {
+            let context = Self.context {
+                $0.lastWake = Self.now.addingTimeInterval(-60)
+                $0.scheduleBecameVisible = visible
+            }
+            let reads = ReadPlan.reads(previous: status, current: status, context: context)
+            #expect(reads.contains(.wake) == visible)
+        }
+    }
+
     @Test func contextTriggersTheirReads() throws {
         let status = try self.status()
         func plan(_ edit: (inout ReadContext) -> Void) -> Set<ReadKind> {
             ReadPlan.reads(previous: status, current: status, context: Self.context(edit))
         }
-        #expect(plan { $0.scheduleBecameVisible = true } == [.inspect])
+        #expect(plan { $0.scheduleBecameVisible = true } == [.inspect, .wake])
         #expect(plan { $0.afterChange = true } == [.inspect, .list])
         #expect(plan { $0.localDateChanged = true } == [.inspect, .history])
         #expect(plan { $0.accountsBecameVisible = true } == [.list])

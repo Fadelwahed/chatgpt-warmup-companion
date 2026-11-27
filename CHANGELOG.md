@@ -11,6 +11,16 @@ Notable changes to Warm-up: the engine (`warmup.mjs` and its modules) and the me
 - `scripts/wake-test.sh` tests whether a booked wake with the lid closed stays awake long enough for a warm-up: four `waketest` wakes, a detached watcher, and `--report` against `pmset -g log` (`--dry-run`, `--cancel`, `--self-test`).
 - `scripts/wake-test.sh --quick`: one test wake with every hold at once, about 5 minutes per run.
 
+### Scripts
+
+- `scripts/repin-router.sh` re-pins codex-router after it updates itself; it stops on a changed pinned file unless given a review note.
+- The repo pins codex-router 85491891, the revision reviewed on 26 Nov.
+
+### App 0.7.7
+
+- The router block names the usual cause (Update or Restart in codex-router's menu) and the fix, running repin-router, in the headline note, the alert, the missed-time advice and Help.
+- Opening Schedule reads the wake marks again; a time moved for today is labelled "today only"; the start-date picker closes with Settings.
+
 ### App 0.7.6
 
 - The wake wording says a booked wake also works with the lid closed while the Mac is plugged in (27 Nov 08:00 check).

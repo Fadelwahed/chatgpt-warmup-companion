@@ -185,11 +185,16 @@ public enum EffectReport {
 
     /// Copyable text: counts, accounts numbered, no IDs. Per-send lines (only when `rows` are passed)
     /// use each row's "Account N" label, never a nickname.
-    public static func text(_ summary: EffectSummary, rows: [EffectRow] = [], countFromLabel: String? = nil) -> String {
-        let period = countFromLabel.map { "since \($0)" } ?? "last \(Self.periodDays) days"
+    /// `upcoming`: the start date is still ahead; the header says "starts" and the progress line alone
+    /// says when counting starts (work order 146).
+    public static func text(
+        _ summary: EffectSummary, rows: [EffectRow] = [], countFromLabel: String? = nil, upcoming: Bool = false
+    ) -> String {
+        let since = upcoming ? "starts" : "since"
+        let period = countFromLabel.map { "\(since) \($0)" } ?? "last \(Self.periodDays) days"
         var lines = ["Did it help? (\(period))", summary.verdict]
-        lines.append(EffectProgress.text(clear: summary.clear, countFromLabel: countFromLabel))
-        if let countFromLabel { lines.append("Counting from \(countFromLabel)") }
+        lines.append(EffectProgress.text(clear: summary.clear, countFromLabel: countFromLabel, upcoming: upcoming))
+        if let countFromLabel, !upcoming { lines.append("Counting from \(countFromLabel)") }
         lines += summary.lines
         lines += rows.map { "\($0.time) · \($0.numberLabel): \($0.effectWords)" }
         return (lines + [Self.scope, Self.stopRule]).joined(separator: "\n")

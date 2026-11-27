@@ -250,4 +250,41 @@ import Testing
         #expect(EffectProgress.text(clear: 3, countFromLabel: nil) == "3 of 10 warm-ups measured in the last 14 days")
         #expect(EffectProgress.text(clear: 3, countFromLabel: "1 Dec") == "3 of 10 warm-ups measured since 1 Dec")
     }
+
+    // MARK: - Work order 146: a start date ahead of time
+
+    @Test func startDateCanBeUpToAMonthAhead() {
+        #expect(EffectReport.maxDaysAhead == 31)
+    }
+
+    @Test func measurementLineForUnsetFutureAndPastStart() {
+        #expect(EffectReport.measurementLine(countFrom: nil, now: Self.eight) == EffectReport.notStarted)
+        let tomorrow = Measurement.midnight + Self.day
+        #expect(EffectReport.measurementLine(countFrom: tomorrow, now: Self.eight) == EffectReport.starts)
+        #expect(EffectReport.measurementLine(countFrom: Measurement.midnight, now: Self.eight) == EffectReport.started)
+        #expect(EffectReport.measurementLine(countFrom: Self.eight, now: Self.eight) == EffectReport.started)
+        #expect(EffectReport.starts == "Decision period starts on the date below. Nothing is counted before then.")
+        #expect(Fixes051.offending([EffectReport.starts, "Counting starts 1 Dec."]) == [])
+    }
+
+    @Test func progressTextForAnUpcomingStart() {
+        #expect(EffectProgress.text(clear: 0, countFromLabel: "1 Dec", upcoming: true) == "Counting starts 1 Dec.")
+        #expect(
+            EffectProgress.text(clear: 0, countFromLabel: "1 Dec", upcoming: false)
+                == "0 of 10 warm-ups measured since 1 Dec")
+        #expect(
+            EffectProgress.text(clear: 0, countFromLabel: nil, upcoming: true)
+                == "0 of 10 warm-ups measured in the last 14 days")
+    }
+
+    @Test func copiedTextForAnUpcomingStart() {
+        let summary = EffectReport.summary(
+            UsageLog(rows: []), order: ["a"], now: Self.eight, countFrom: Measurement.midnight + Self.day)
+        let text = EffectReport.text(summary, countFromLabel: "1 Dec", upcoming: true)
+        #expect(text.hasPrefix("Did it help? (starts 1 Dec)"))
+        #expect(text.contains("Counting starts 1 Dec."))
+        #expect(text.components(separatedBy: "Counting starts").count == 2)
+        #expect(!text.contains("since 1 Dec"))
+        #expect(!text.contains("Counting from"))
+    }
 }

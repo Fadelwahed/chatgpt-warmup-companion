@@ -12,6 +12,13 @@ A native macOS menu-bar companion for the existing Warm-up CLI. The CLI and its 
 - **Schedule:** today plus six days from `schedule inspect`, with weekday exclusions, repeated or nonexistent DST minutes and the next admission. Selecting a slot runs `schedule inspect --slot`. The detail separates whether a request was sent, whether a response was confirmed and the guidance. It always shows "Usage window effect unverified". **Copy redacted summary** copies reason codes and times only: no installation ID, account IDs or tokens.
 - **Accounts:** rows from `list`, which reads Router's registry without credentials or network.
 
+## Version 0.7.9 (27 November 2026): a start date ahead of time
+
+Built from work order 146.
+
+- **Start date ahead.** The start date can be up to 31 days ahead. Before it, Overview says "Counting starts 1 Dec." and Settings says the period starts on that date.
+- **Tests.** 368 Swift tests pass (364 before). Not yet seen on screen.
+
 ## Version 0.7.8 (27 November 2026): the start date can be set
 
 Built from work order 145.

@@ -767,11 +767,16 @@ private struct MeasurementSection: View {
         let zone = self.zone
         let stored = self.model.effectCountFromDay != nil
         let day = self.day(zone: zone)
+        let countFrom = self.model.effectCountFromDay.flatMap {
+            EffectReport.countFromStart(day: $0, zone: zone.identifier)
+        }
+        let now = Int(Date().timeIntervalSince1970 * 1000)
+        let latest = Date().addingTimeInterval(Double(EffectReport.maxDaysAhead) * 86_400)
         Section("Measurement") {
-            Text(stored ? EffectReport.started : EffectReport.notStarted).font(.callout)
+            Text(EffectReport.measurementLine(countFrom: countFrom, now: now)).font(.callout)
             HStack {
                 DatePicker(
-                    "Count \"Did it help?\" from", selection: day, in: ...Date(),
+                    "Count \"Did it help?\" from", selection: day, in: ...latest,
                     displayedComponents: .date
                 )
                 .environment(\.timeZone, zone)

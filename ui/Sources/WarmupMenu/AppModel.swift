@@ -385,13 +385,14 @@ final class AppModel: ObservableObject {
         let countFrom = self.effectCountFromDay.flatMap { EffectReport.countFromStart(day: $0, zone: zone) }
         let summary = EffectReport.summary(self.usageLog, order: order, now: now, countFrom: countFrom)
         let label = countFrom.map { EffectReport.countFromLabel(ms: $0, zone: zone, now: now) }
+        let upcoming = countFrom.map { $0 > now } ?? false
         let rows = EffectReport.rows(
             log: self.usageLog, order: order, labels: self.labels, countFrom: countFrom, now: now, zone: zone)
         self.assign(
             \.effect,
             EffectState(
-                summary: summary, rows: rows, countFromLabel: label,
-                progress: EffectProgress.text(clear: summary.clear, countFromLabel: label),
+                summary: summary, rows: rows, countFromLabel: label, countFromUpcoming: upcoming,
+                progress: EffectProgress.text(clear: summary.clear, countFromLabel: label, upcoming: upcoming),
                 progressFraction: EffectProgress.fraction(clear: summary.clear),
                 decision: EffectDecision.make(counts: summary.counts, total: summary.total, countFrom: countFrom)))
     }
@@ -994,7 +995,9 @@ final class AppModel: ObservableObject {
     func copyEffectReport() {
         guard let effect else { return }
         self.copy(
-            EffectReport.text(effect.summary, rows: effect.rows, countFromLabel: effect.countFromLabel),
+            EffectReport.text(
+                effect.summary, rows: effect.rows, countFromLabel: effect.countFromLabel,
+                upcoming: effect.countFromUpcoming),
             confirmation: "Effect report copied")
     }
 
@@ -1236,7 +1239,9 @@ struct EffectState: Equatable {
     let rows: [EffectRow]
     /// "1 Dec", or nil when no count-from date is set.
     let countFromLabel: String?
-    /// "3 of 10 warm-ups measured since 1 Dec".
+    /// The count-from date is still ahead: nothing is counted yet (work order 146).
+    let countFromUpcoming: Bool
+    /// "3 of 10 warm-ups measured since 1 Dec", or "Counting starts 1 Dec.".
     let progress: String
     /// 0…1, for the progress bar.
     let progressFraction: Double

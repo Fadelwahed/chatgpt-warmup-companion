@@ -6,7 +6,9 @@ import Foundation
 
 /// "3 of 10 warm-ups measured since 1 Dec": how far the measurement is from a decision.
 public enum EffectProgress {
-    public static func text(clear: Int, countFromLabel: String?) -> String {
+    /// `upcoming`: the start date is still ahead, so nothing is counted yet: "Counting starts 1 Dec."
+    public static func text(clear: Int, countFromLabel: String?, upcoming: Bool = false) -> String {
+        if upcoming, let countFromLabel { return "Counting starts \(countFromLabel)." }
         let period = countFromLabel.map { "since \($0)" } ?? "in the last \(EffectReport.periodDays) days"
         let goal = EffectReport.minimumSends
         let noun = clear == 1 ? "warm-up" : "warm-ups"
@@ -72,6 +74,16 @@ extension EffectReport {
     public static let notStarted = "\(noCountFrom) Counting the last \(periodDays) days."
     /// Settings once a "count from" date is set (work order 145).
     public static let started = "Decision period started. Counting from the date below."
+    /// Settings while the "count from" date is still ahead (work order 146).
+    public static let starts = "Decision period starts on the date below. Nothing is counted before then."
+    /// How many days ahead the "count from" date can be picked (work order 146).
+    public static let maxDaysAhead = 31
+
+    /// The Settings status line: not set, set but still ahead of `now`, or started (all in ms).
+    public static func measurementLine(countFrom: Int?, now: Int) -> String {
+        guard let countFrom else { return Self.notStarted }
+        return countFrom > now ? Self.starts : Self.started
+    }
     /// The Overview button that opens Settings to set the "count from" date.
     public static let setStartDate = "Set Start Date…"
 

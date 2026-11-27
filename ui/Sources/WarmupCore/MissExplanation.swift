@@ -24,13 +24,13 @@ public enum MissExplanation {
                 ready ? Self.nothingToDo : "Review the change and re-pin codex-router.",
             ]
         case "no_tick_between":
-            // Only a job not seen afterwards keeps the engine's hint to check the job. A booked wake can
-            // last seconds with the lid closed on battery (work order 137), so it is not the whole remedy.
+            // Only a job not seen afterwards keeps the engine's hint to check the job. On battery with the lid
+            // closed a booked wake ends within seconds (27 Nov test, work order 140): not the whole remedy.
             let toDo =
                 jobSeenAfterwards == false
                 ? Wording.guidance("check_job_and_mac_awake")
-                : "Keep the Mac awake at warm-up times. A booked wake helps when the lid is open; with the lid "
-                    + "closed on battery it may be too short."
+                : "Keep the Mac awake at warm-up times. A booked wake works with the lid open; on battery with "
+                    + "the lid closed, the Mac sleeps again within seconds."
             let what = "Nothing ran at that minute; the reason was not recorded."
             return [what] + [asleepNote].compactMap { $0 } + [toDo]
         case "schedule_disabled":

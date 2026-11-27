@@ -34,6 +34,10 @@ Manual runs work with scheduling disabled and without an earlier pilot, subject 
 
 Each command emits one bounded protocolVersion-1 JSON object with command, outcome, sanitized reason, installationId, engineVersion and observedAt. `run` also always reports selected, attempted and individual results. Attempted counts transport dispatches, not reservations, success or quota spent.
 
+### Engine 1.2.5-offline (27 November 2026)
+
+The batch power hold is now `/usr/bin/caffeinate -s -i -w <pid>`: `-s` asks macOS to keep the system awake on AC power and is ignored on battery. Whether it keeps a lid-closed Mac awake through a whole batch is not yet checked. Everything else about the hold is unchanged.
+
 ### Engine 1.2.4-offline (25 November 2026)
 
 A scheduled send that fails before anything is sent with `transport_before_send` and transport code `ENOTFOUND`, `EAI_AGAIN`, `ENETUNREACH`, `EHOSTUNREACH` or `ECONNREFUSED` is retried under the same reservation, up to 3 attempts in all, waiting 5 s before the second and 15 s before the third, and only while the batch deadline still leaves at least 45 s after the wait and every pre-send check passes again; manual runs keep a single attempt, and the history row describes only the last attempt. While a batch processes accounts the engine holds `/usr/bin/caffeinate -i -w <pid>` and releases it when the batch ends, and the hold fails open: if it cannot start, the batch runs exactly as before.

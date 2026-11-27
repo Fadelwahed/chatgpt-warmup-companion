@@ -2214,6 +2214,12 @@ export async function runCommand(command, context, services) {
   } catch (error) { return { ...fail(error?.[SAFE_REASON] ? error.reason : 'internal_error', error?.[SAFE_REASON] ? error.exitCode ?? 2 : 2), installationId }; }
 }
 
+// caffeinate arguments for the batch hold (1.2.5): -s keeps the system awake on AC power (macOS ignores it
+// on battery), -i blocks idle sleep, -w ties the hold to this process.
+export function powerHoldArguments(pid) {
+  return ['-s', '-i', '-w', String(pid)];
+}
+
 export function hostServices(root, command = (file, args) => execFileSync(file, args, { encoding: 'utf8', timeout: 5000, maxBuffer: 1024 * 1024, env: { PATH: '/usr/bin:/bin', LC_ALL: 'C', GIT_OPTIONAL_LOCKS: '0', GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' } }), nodeInspector) {
   // Factory is inert; deployment qualification must establish the exact root and plist before CLI use.
   if (!path.isAbsolute(root) || path.resolve(root) !== root) throwCode('invalid_root');
@@ -2295,7 +2301,7 @@ export function hostServices(root, command = (file, args) => execFileSync(file, 
     // Keeps the Mac awake while a batch runs; caffeinate also exits with this process (-w).
     power: { hold() {
       let child;
-      try { child = spawn('/usr/bin/caffeinate', ['-i', '-w', String(process.pid)], { stdio: 'ignore', env: { PATH: '/usr/bin:/bin' }, shell: false }); }
+      try { child = spawn('/usr/bin/caffeinate', powerHoldArguments(process.pid), { stdio: 'ignore', env: { PATH: '/usr/bin:/bin' }, shell: false }); }
       catch { return () => {}; }
       child.on('error', () => {});  // a missing binary emits 'error' asynchronously; fail open
       child.unref();

@@ -1,6 +1,6 @@
 {
   "protocolVersion": 1,
-  "engineVersion": "1.2.4-offline",
+  "engineVersion": "1.2.5-offline",
   "command": "schedule",
   "outcome": "ready",
   "reason": "schedule_disabled",

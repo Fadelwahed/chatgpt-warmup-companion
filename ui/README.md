@@ -12,6 +12,13 @@ A native macOS menu-bar companion for the existing Warm-up CLI. The CLI and its 
 - **Schedule:** today plus six days from `schedule inspect`, with weekday exclusions, repeated or nonexistent DST minutes and the next admission. Selecting a slot runs `schedule inspect --slot`. The detail separates whether a request was sent, whether a response was confirmed and the guidance. It always shows "Usage window effect unverified". **Copy redacted summary** copies reason codes and times only: no installation ID, account IDs or tokens.
 - **Accounts:** rows from `list`, which reads Router's registry without credentials or network.
 
+## Version 0.7.4 (27 November 2026): wake wording from the lid-closed test
+
+Built from work order 140.
+
+- **Wake wording.** The three wake sentences say what the 27 Nov lid-closed test showed instead of "may". A missed time's advice: "Keep the Mac awake at warm-up times. A booked wake works with the lid open; on battery with the lid closed, the Mac sleeps again within seconds." Schedule, under "Wakes booked through …" only: "A booked wake works with the lid open. On battery with the lid closed, the Mac sleeps again within seconds." Help: "A booked wake works with the lid open. On battery with the lid closed, macOS lets the Mac sleep again within about 30 seconds, which is usually too short for a warm-up."
+- **Tests.** 362 Swift tests pass (362 before). Not yet seen on screen.
+
 ## Version 0.7.3 (27 November 2026): no job line before a time has come, and "time off" in the detail
 
 Built from work order 138.

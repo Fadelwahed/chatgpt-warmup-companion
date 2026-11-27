@@ -2,7 +2,10 @@
 // output of test/ui-fixtures.test.mjs. Usage, from the repository root:
 //   rtk proxy /opt/homebrew/opt/node@22/bin/node test/run.mjs test/ui-fixtures.test.mjs > ui.tap
 //   /opt/homebrew/opt/node@22/bin/node tools/extract-ui-fixtures.mjs ui.tap
-// Review the resulting diff before accepting it: fixtures are the native app's contract.
+// Both commands work when fixtures are missing or drifted (for example after an engine version
+// bump): the test prints every fixture line before comparing, so its run exits non-zero then,
+// which is expected. Review the resulting diff before accepting it: fixtures are the native
+// app's contract.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

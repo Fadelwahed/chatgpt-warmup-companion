@@ -102,17 +102,29 @@ function stable(json) {
 test("UI fixtures match the real engine envelopes for synthetic installations", async () => {
   const generated = await scenarios();
   const missing = [];
+  const drifted = [];
   for (const [name, json] of Object.entries(generated)) {
     assert.equal(json.protocolVersion, 1); assert.equal(json.installationId, INSTALLATION, name);
     assert.equal(JSON.stringify(json).includes("synthetic\""), false, `${name} must not echo credential material`);
+    // Print before comparing so the extract tool still gets every fixture when some drifted.
+    process.stdout.write(`# UI-FIXTURE ${name} ${JSON.stringify(stable(json))}\n`);
     const file = path.join(fixtureDir, `${name}.json`);
     let expected;
     try { expected = JSON.parse(fs.readFileSync(file, "utf8")); }
-    catch { missing.push(name); }
-    if (expected) assert.deepEqual(stable(json), stable(expected), `${name} drifted from its UI fixture`);
-    process.stdout.write(`# UI-FIXTURE ${name} ${JSON.stringify(stable(json))}\n`);
+    catch { missing.push(name); continue; }
+    try { assert.deepEqual(stable(json), stable(expected), `${name} drifted from its UI fixture`); }
+    catch (error) { drifted.push({ name, error }); }
   }
   assert.deepEqual(missing, [], "regenerate missing UI fixtures with tools/extract-ui-fixtures.mjs");
+  if (drifted.length) {
+    const [{ error }] = drifted;
+    // A new error, so the spec reporter (which prints the stack) shows the list too.
+    throw new assert.AssertionError({
+      message: `${drifted.length} UI fixtures drifted: ${drifted.map(entry => entry.name).join(", ")}; `
+        + `regenerate with tools/extract-ui-fixtures.mjs and review the diff.\nFirst mismatch: ${error.message}`,
+      actual: error.actual, expected: error.expected, operator: error.operator,
+    });
+  }
   assert.equal(typeof generated["status-enabled"].engineBuild, "string");
   assert.match(generated["status-enabled"].engineBuild, /^sha256:[a-f0-9]{64}$/);
 });

@@ -243,6 +243,8 @@ import Testing
     @Test func measurementWordsForUnsetAndSet() {
         #expect(EffectReport.noCountFrom == "Decision period hasn't started.")
         #expect(EffectReport.notStarted == "Decision period hasn't started. Counting the last 14 days.")
+        #expect(EffectReport.started == "Decision period started. Counting from the date below.")
+        #expect(Fixes051.offending([EffectReport.started, EffectReport.notStarted]) == [])
         #expect(EffectReport.setStartDate == "Set Start Date…")
         #expect(!EffectReport.noCountFrom.contains("count from"))
         #expect(EffectProgress.text(clear: 3, countFromLabel: nil) == "3 of 10 warm-ups measured in the last 14 days")

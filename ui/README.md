@@ -12,6 +12,13 @@ A native macOS menu-bar companion for the existing Warm-up CLI. The CLI and its 
 - **Schedule:** today plus six days from `schedule inspect`, with weekday exclusions, repeated or nonexistent DST minutes and the next admission. Selecting a slot runs `schedule inspect --slot`. The detail separates whether a request was sent, whether a response was confirmed and the guidance. It always shows "Usage window effect unverified". **Copy redacted summary** copies reason codes and times only: no installation ID, account IDs or tokens.
 - **Accounts:** rows from `list`, which reads Router's registry without credentials or network.
 
+## Version 0.7.8 (27 November 2026): the start date can be set
+
+Built from work order 145.
+
+- **Start date.** Settings > Measurement always shows a date with Start (Clear once a date is set). "Set Start Date…" in Settings did nothing since 0.7.0. The 0.7.7 "picker closes with Settings" change is removed because there is no picker to close.
+- **Tests.** 364 Swift tests pass (364 before). Not yet seen on screen.
+
 ## Version 0.7.7 (27 November 2026): router re-pin and small fixes
 
 Built from work order 144.

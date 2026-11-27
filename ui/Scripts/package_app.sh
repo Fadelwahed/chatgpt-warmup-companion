@@ -8,7 +8,7 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd -P)
 OUT=${1:-"$ROOT/.build/stage"}
 case "$OUT" in /*) ;; *) echo "output must be absolute" >&2; exit 2 ;; esac
 BUNDLE_ID=local.warmup.menu
-VERSION=0.7.7
+VERSION=0.7.8
 APP="$OUT/Warm-up.app"
 cd "$ROOT"
 swift build -c release --product WarmupMenu
@@ -26,7 +26,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleExecutable</key><string>WarmupMenu</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>${VERSION}</string>
-    <key>CFBundleVersion</key><string>24</string>
+    <key>CFBundleVersion</key><string>25</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>LSMinimumSystemVersion</key><string>15.0</string>
     <key>LSUIElement</key><true/>

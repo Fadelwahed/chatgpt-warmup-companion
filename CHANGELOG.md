@@ -16,6 +16,10 @@ Notable changes to Warm-up: the engine (`warmup.mjs` and its modules) and the me
 - `scripts/repin-router.sh` re-pins codex-router after it updates itself; it stops on a changed pinned file unless given a review note.
 - The repo pins codex-router 85491891, the revision reviewed on 26 Nov.
 
+### App 0.7.8
+
+- Settings > Measurement always shows the start date with Start; "Set Start Date…" there did nothing since 0.7.0.
+
 ### App 0.7.7
 
 - The router block names the usual cause (Update or Restart in codex-router's menu) and the fix, running repin-router, in the headline note, the alert, the missed-time advice and Help.

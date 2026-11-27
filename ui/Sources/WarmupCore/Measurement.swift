@@ -70,7 +70,9 @@ extension EffectReport {
     public static let noCountFrom = "Decision period hasn't started."
     /// Settings while no "count from" date is set: "Decision period hasn't started. Counting the last 14 days."
     public static let notStarted = "\(noCountFrom) Counting the last \(periodDays) days."
-    /// The button that starts setting a "count from" date (Settings) or opens Settings to do so (Overview).
+    /// Settings once a "count from" date is set (work order 145).
+    public static let started = "Decision period started. Counting from the date below."
+    /// The Overview button that opens Settings to set the "count from" date.
     public static let setStartDate = "Set Start Date…"
 
     /// The start of `day` (`yyyy-MM-dd`) in `zone`, in epoch milliseconds; nil for a bad day or zone.

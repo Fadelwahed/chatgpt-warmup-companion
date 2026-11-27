@@ -757,72 +757,61 @@ private struct AlertsSection: View {
 }
 
 /// The "count from" day for "Did it help?" (F1), picked in the schedule's zone. Stored on this Mac
-/// only; nothing is sent to the engine. While none is stored there is no picker: "Set Start Date…"
-/// reveals one, and nothing is stored until Start (0.7.0).
+/// only; nothing is sent to the engine. The row always shows a date picker and keeps one shape;
+/// nothing is stored until Start (work order 145; the 0.7.0 reveal never worked on screen).
 private struct MeasurementSection: View {
     @EnvironmentObject private var model: AppModel
-    @State private var choosing = false
-    @State private var pending = Date()
+    @State private var draft = Date()
 
     var body: some View {
         let zone = self.zone
+        let stored = self.model.effectCountFromDay != nil
+        let day = self.day(zone: zone)
         Section("Measurement") {
-            if self.model.effectCountFromDay != nil {
-                HStack {
-                    DatePicker(
-                        "Count \"Did it help?\" from", selection: self.day(zone: zone), in: ...Date(),
-                        displayedComponents: .date
-                    )
-                    .environment(\.timeZone, zone)
-                    .environment(\.locale, Locale(identifier: "en_GB"))  // day before month, like "Fri 27 Nov"
-                    PickedDay(date: self.day(zone: zone).wrappedValue, zone: zone)
-                    Button("Clear") { self.model.setCountFrom(nil) }
-                        .accessibilityLabel("Clear the count from date")
-                }
-            } else if self.choosing {
-                HStack {
-                    DatePicker(
-                        "Count \"Did it help?\" from", selection: self.$pending, in: ...Date(),
-                        displayedComponents: .date
-                    )
-                    .environment(\.timeZone, zone)
-                    .environment(\.locale, Locale(identifier: "en_GB"))  // day before month, like "Fri 27 Nov"
-                    PickedDay(date: self.pending, zone: zone)
-                    Button("Cancel") { self.choosing = false }
-                    Button("Start") {
-                        self.model.setCountFrom(ClockTime.day(from: self.pending, zone: zone))
-                        self.choosing = false
+            Text(stored ? EffectReport.started : EffectReport.notStarted).font(.callout)
+            HStack {
+                DatePicker(
+                    "Count \"Did it help?\" from", selection: day, in: ...Date(),
+                    displayedComponents: .date
+                )
+                .environment(\.timeZone, zone)
+                .environment(\.locale, Locale(identifier: "en_GB"))  // day before month, like "Fri 27 Nov"
+                PickedDay(date: day.wrappedValue, zone: zone)
+                Button(stored ? "Clear" : "Start") {
+                    if stored {
+                        self.model.setCountFrom(nil)
+                        self.draft = Date()
+                    } else {
+                        self.model.setCountFrom(ClockTime.day(from: self.draft, zone: zone))
                     }
                 }
-            } else {
-                HStack {
-                    Text(EffectReport.notStarted).font(.callout)
-                    Spacer()
-                    Button(EffectReport.setStartDate) {
-                        self.pending = Date()
-                        self.choosing = true
-                    }
-                }
+                .accessibilityLabel(stored ? "Clear the count from date" : "Start counting from this date")
             }
             Text(EffectReport.stopRule).font(.callout)
         }
-        .onChange(of: self.model.settingsClosings) { self.choosing = false }
     }
 
     private var zone: TimeZone {
         self.model.status.flatMap { TimeZone(identifier: $0.schedule.zone) } ?? .current
     }
 
-    /// Shows the stored day; a pick sends the picked day.
+    /// No day stored: shows and sets the draft only. A day stored: shows it; a pick sends the picked day.
     private func day(zone: TimeZone) -> Binding<Date> {
         Binding(
             get: {
-                guard let day = self.model.effectCountFromDay,
-                    let start = EffectReport.countFromStart(day: day, zone: zone.identifier)
-                else { return Date() }
+                guard let day = self.model.effectCountFromDay else { return self.draft }
+                guard let start = EffectReport.countFromStart(day: day, zone: zone.identifier) else {
+                    return Date()
+                }
                 return Date(timeIntervalSince1970: Double(start) / 1000)
             },
-            set: { self.model.setCountFrom(ClockTime.day(from: $0, zone: zone)) })
+            set: { picked in
+                guard self.model.effectCountFromDay != nil else {
+                    self.draft = picked
+                    return
+                }
+                self.model.setCountFrom(ClockTime.day(from: picked, zone: zone))
+            })
     }
 }
 

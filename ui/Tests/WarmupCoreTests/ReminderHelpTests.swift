@@ -156,7 +156,7 @@ import Testing
             section.body.hasSuffix(
                 "Schedule shows whether a wake is booked for each coming time. " + Self.lidSentence
                     + " The schedule-wakes script in the "
-                    + "Warm-up repository books them for 7 days at a time; with alerts on, Warm-up tells you the day "
+                    + "Warm-up repository books them for 4 weeks at a time; with alerts on, Warm-up tells you the day "
                     + "before they run out."))
         #expect(!section.body.contains("Settings shows a command"))
     }

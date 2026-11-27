@@ -4,11 +4,16 @@ Notable changes to Warm-up: the engine (`warmup.mjs` and its modules) and the me
 
 ## Unreleased
 
+- Engine 1.2.6-offline: `schedule inspect --days N` projects up to 28 days (1 to 28); plain `schedule inspect`, previews and `status` keep 7.
 - Engine 1.2.5-offline: a batch holds `caffeinate -s -i` instead of `-i`, which asks macOS to keep the Mac awake on the charger; nothing changes on battery. Whether it carries a lid-closed batch is not yet checked.
 - Engine 1.2.4-offline: a scheduled send that fails on DNS or the network before anything is sent is retried up to twice; the Mac is kept awake while a batch runs.
-- `scripts/schedule-wakes.sh` books a one-time macOS wake 5 seconds into each warm-up of the next 7 days (one password prompt; `--dry-run`, `--cancel`), replacing only the wakes it booked before.
+- `scripts/schedule-wakes.sh` books a one-time macOS wake 5 seconds into each warm-up of the next 28 days (one password prompt every 4 weeks; `--days N` for 1 to 28, `--dry-run`, `--cancel`), replacing only the wakes it booked before. Its closing line says how many days were booked and through which day.
 - `scripts/wake-test.sh` tests whether a booked wake with the lid closed stays awake long enough for a warm-up: four `waketest` wakes, a detached watcher, and `--report` against `pmset -g log` (`--dry-run`, `--cancel`, `--self-test`).
 - `scripts/wake-test.sh --quick`: one test wake with every hold at once, about 5 minutes per run.
+
+### App 0.7.5
+
+- Help says the schedule-wakes script books wakes for 4 weeks at a time; the wake-expiry alert and the Schedule pane's wake note say "the next 4 weeks" instead of 7 days.
 
 ### App 0.7.4
 

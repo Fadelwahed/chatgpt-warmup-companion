@@ -106,14 +106,15 @@ This sends one warm-up to every enabled enrollment, right now. A successful manu
 warmup schedule enable
 ```
 
-This writes and loads the LaunchAgent `~/Library/LaunchAgents/local.codex-router-warmup.plist`. From then on, warm-ups go out at 08:00, 13:00 and 18:00 in your Mac's time zone, with no Terminal open. A slot passes unsent while your Mac is asleep or off, and the engine never sends it late. To have a sleeping Mac wake for every warm-up, book a one-time wake 5 seconds into each warm-up of the next 7 days:
+This writes and loads the LaunchAgent `~/Library/LaunchAgents/local.codex-router-warmup.plist`. From then on, warm-ups go out at 08:00, 13:00 and 18:00 in your Mac's time zone, with no Terminal open. A slot passes unsent while your Mac is asleep or off, and the engine never sends it late. To have a sleeping Mac wake for every warm-up, book a one-time wake 5 seconds into each warm-up of the next 4 weeks:
 
 ```sh
 scripts/schedule-wakes.sh --dry-run   # show the pmset commands first
-scripts/schedule-wakes.sh             # book them; asks for your password once
+scripts/schedule-wakes.sh             # book 28 days; asks for your password once
+scripts/schedule-wakes.sh --days 7    # book fewer days (1 to 28)
 ```
 
-Run it as yourself, not with `sudo`. It replaces only the wakes it booked before (owner `warmup` in `pmset -g sched`), so rerun it weekly and after any schedule change; `--cancel` removes them. A wake cannot start a Mac that is shut down. `pmset` keeps a single repeating wake, so `sudo pmset repeat wakeorpoweron MTWRFSU 07:55:00` covers only your first slot.
+Run it as yourself, not with `sudo`. It replaces only the wakes it booked before (owner `warmup` in `pmset -g sched`), so rerun it every 4 weeks and after any schedule change; `--cancel` removes them. A wake cannot start a Mac that is shut down. `pmset` keeps a single repeating wake, so `sudo pmset repeat wakeorpoweron MTWRFSU 07:55:00` covers only your first slot.
 
 With the lid closed, a booked wake may be only a short dark wake. `scripts/wake-test.sh` measures this without sending anything: it books four test wakes 4 minutes apart (owner `waketest`, never `warmup`) and a watcher logs, at each wake, how long the Mac stays awake with no assertion or with `caffeinate -i`, `-u` or `-s -i`, and when a name lookup of `chatgpt.com` succeeds. Unplug any external display, run it, close the lid until the time it prints, then run `scripts/wake-test.sh --report`. `--quick` books one test wake 2 minutes out with every hold at once (`caffeinate -u -s -i`); close the lid for about 5 minutes. Logs go to `~/Library/Logs/warmup-wake-test/`; `--dry-run` and `--self-test` change nothing; `--cancel` removes the test wakes and stops the watcher.
 
@@ -160,7 +161,7 @@ The link is saved in `~/Library/Application Support/local.warmup.menu/engine-bin
 | List accounts and enrollments | `warmup list` |
 | Send a warm-up now (all accounts, or one) | `warmup run` / `warmup run --account enr_…` |
 | Pause or resume the schedule | `warmup schedule disable` / `warmup schedule enable` |
-| See the next seven days | `warmup schedule inspect` |
+| See the next seven days (or up to 28) | `warmup schedule inspect` / `warmup schedule inspect --days 28` |
 | See past warm-ups | `warmup history` |
 | See how long each account took to answer | `warmup timing` |
 

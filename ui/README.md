@@ -12,6 +12,13 @@ A native macOS menu-bar companion for the existing Warm-up CLI. The CLI and its 
 - **Schedule:** today plus six days from `schedule inspect`, with weekday exclusions, repeated or nonexistent DST minutes and the next admission. Selecting a slot runs `schedule inspect --slot`. The detail separates whether a request was sent, whether a response was confirmed and the guidance. It always shows "Usage window effect unverified". **Copy redacted summary** copies reason codes and times only: no installation ID, account IDs or tokens.
 - **Accounts:** rows from `list`, which reads Router's registry without credentials or network.
 
+## Version 0.7.5 (27 November 2026): wakes booked 4 weeks ahead
+
+Built from work order 142.
+
+- **Help.** "The schedule-wakes script in the Warm-up repository books them for 4 weeks at a time; with alerts on, Warm-up tells you the day before they run out." The script now books 28 days by default (engine 1.2.6 `schedule inspect --days 28`). The wake-expiry alert's timing needed no change: it reads the last booked day from `pmset -g sched`, whatever the horizon. **Wake-expiry alert and Schedule.** The alert body now says "Run schedule-wakes again to book the next 4 weeks." and the Schedule pane's wake note says "the next 4 weeks" (amendment to order 142; both said 7 days). The Schedule list still shows 7 days.
+- **Tests.** 362 Swift tests pass (362 before). Not yet seen on screen.
+
 ## Version 0.7.4 (27 November 2026): wake wording from the lid-closed test
 
 Built from work order 140.

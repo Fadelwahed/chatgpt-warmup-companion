@@ -36,7 +36,7 @@ public enum HelpText {
                     + "missed, and Warm-up never sends it late. Schedule shows whether a wake is booked for each coming "
                     + "time. A booked wake works with the lid open. On battery with the lid closed, macOS lets the "
                     + "Mac sleep again within about 30 seconds, which is usually too short for a warm-up. The "
-                    + "schedule-wakes script in the Warm-up repository books them for 7 days at a time; "
+                    + "schedule-wakes script in the Warm-up repository books them for 4 weeks at a time; "
                     + "with alerts on, Warm-up tells you the day before they run out."
             ),
             (

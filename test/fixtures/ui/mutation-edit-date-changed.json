@@ -1,6 +1,6 @@
 {
   "protocolVersion": 1,
-  "engineVersion": "1.2.5-offline",
+  "engineVersion": "1.2.6-offline",
   "command": "schedule",
   "outcome": "blocked",
   "reason": "schedule_date_changed",

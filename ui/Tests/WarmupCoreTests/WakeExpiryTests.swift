@@ -101,15 +101,15 @@ import Testing
         #expect(
             tomorrow.body
                 == "After Wed 2 Dec the Mac will not wake for warm-ups. Run schedule-wakes again to book the next "
-                + "7 days.")
+                + "4 weeks.")
         let today = WakeExpiry.content(lastBookedDay: "2026-12-02", today: "2026-12-02")
         #expect(today.title == "Wake bookings end today")
         for text in [tomorrow.title, tomorrow.body, today.title, today.body] {
             #expect(!text.contains("/"))
             #expect(!text.contains("install_"))
-            // The order's literal body names "7 days"; apart from that and the date, no digits.
+            // The body names "4 weeks"; apart from that and the date, no digits.
             let rest = text.replacingOccurrences(of: "Wed 2 Dec", with: "")
-                .replacingOccurrences(of: "next 7 days", with: "")
+                .replacingOccurrences(of: "next 4 weeks", with: "")
             #expect(!rest.contains { $0.isNumber })
         }
         #expect(Fixes051.offending([tomorrow.title, tomorrow.body]).isEmpty)

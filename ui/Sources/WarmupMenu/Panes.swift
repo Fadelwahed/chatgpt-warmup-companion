@@ -881,7 +881,7 @@ private struct WakeReadinessView: View {
 
     var body: some View {
         Text(
-            "To book a wake for every warm-up of the next 7 days, run scripts/schedule-wakes.sh from the Warm-up "
+            "To book a wake for every warm-up of the next 4 weeks, run scripts/schedule-wakes.sh from the Warm-up "
                 + "repository. It asks for your password and replaces only the wakes it booked before."
         )
         .font(.callout)

@@ -2,9 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { runCommand, hostServices } from './runtime.mjs';
+import { runCommand, hostServices, MAX_PROJECTION_DAYS } from './runtime.mjs';
 
-export const engineVersion = '1.2.5-offline';
+export const engineVersion = '1.2.6-offline';
 const scriptPath = fileURLToPath(import.meta.url);
 const MAX_OUTPUT = 1024 * 1024;
 const commands = ['setup', 'list', 'enroll', 'maintain', 'run', 'tick', 'status', 'history', 'timing', 'schedule', 'remove'];
@@ -60,6 +60,9 @@ function parseCommand(argv) {
     if (action === 'inspect') {
       if (!args.length) return { name: first, action };
       if (args.length === 2 && args[0] === '--slot') return /^\d{4}-\d\d-\d\dT\d\d:\d\d$/.test(args[1]) ? { name: first, action, slot: args[1] } : null;
+      if (args[0] === '--days') {
+        return args.length === 2 && /^[1-9]\d?$/.test(args[1]) && Number(args[1]) <= MAX_PROJECTION_DAYS ? { name: first, action, projectionDays: Number(args[1]) } : null;
+      }
       const proposal = parseEdit(args[0], args.slice(1), false);
       return proposal ? { name: first, action, proposal } : null;
     }

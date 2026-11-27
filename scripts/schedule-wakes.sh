@@ -1,9 +1,11 @@
 #!/bin/sh
-# Books a one-time macOS wake 5 seconds after each upcoming warm-up in the engine's 7-day
-# projection, so a sleeping Mac wakes in time to send it. A Mac that is shut down is not started.
-# It replaces the wakes it booked before (they carry the owner name "warmup") and leaves every
-# other scheduled power event alone. Rerun it weekly and after any schedule change.
-#   scripts/schedule-wakes.sh            book the wakes (asks for your password once)
+# Books a one-time macOS wake 5 seconds after each upcoming warm-up in the next 28 days of the
+# engine's projection (`schedule inspect --days 28`), so a sleeping Mac wakes in time to send it.
+# A Mac that is shut down is not started. It replaces the wakes it booked before (they carry the
+# owner name "warmup") and leaves every other scheduled power event alone. Rerun it every 4 weeks
+# and after any schedule change.
+#   scripts/schedule-wakes.sh            book the wakes for 28 days (asks for your password once)
+#   scripts/schedule-wakes.sh --days N   book them for N days instead (1 to 28)
 #   scripts/schedule-wakes.sh --dry-run  print the pmset commands; change nothing
 #   scripts/schedule-wakes.sh --cancel   remove the wakes this script booked
 set -eu
@@ -13,16 +15,27 @@ NODE=${WARMUP_NODE:-/opt/homebrew/opt/node@22/bin/node}
 ENGINE=${WARMUP_ROOT:-$HOME/.local/share/codex-router-warmup}/warmup.mjs
 OWNER=warmup
 WAKE_AFTER_MS=5000
+MAX_DAYS=28
+USAGE="use --days N (1 to $MAX_DAYS, default $MAX_DAYS), --dry-run or --cancel"
 
 fail() { echo "schedule-wakes: $*" >&2; exit 1; }
 
-mode=book dry=0
-for arg in "$@"; do
-  case "$arg" in
+mode=book dry=0 days=$MAX_DAYS
+while [ $# -gt 0 ]; do
+  case "$1" in
     --dry-run) dry=1 ;;
     --cancel) mode=cancel ;;
-    *) fail "unknown argument: $arg (use --dry-run or --cancel)" ;;
+    --days)
+      [ $# -ge 2 ] || fail "--days needs a number ($USAGE)"
+      case "$2" in
+        ''|0*|*[!0-9]*) fail "invalid --days: $2 ($USAGE)" ;;
+      esac
+      [ "$2" -le "$MAX_DAYS" ] || fail "invalid --days: $2 ($USAGE)"
+      days=$2
+      shift ;;
+    *) fail "unknown argument: $1 ($USAGE)" ;;
   esac
+  shift
 done
 
 [ "$(uname -s)" = Darwin ] || fail "macOS only."
@@ -36,7 +49,7 @@ booked=$(pmset -g sched | sed -n "s#^ *\[[0-9]*\] *wake at \([0-9][0-9]/[0-9][0-
 
 planned=
 if [ "$mode" = book ]; then
-  projection=$("$NODE" "$ENGINE" schedule inspect) || fail "the engine's schedule inspect failed."
+  projection=$("$NODE" "$ENGINE" schedule inspect --days "$days") || fail "the engine's schedule inspect failed."
   planned=$(printf '%s' "$projection" | "$NODE" -e '
 let text = "";
 process.stdin.on("data", chunk => text += chunk).on("end", () => {
@@ -74,5 +87,16 @@ done
 IFS=$old_ifs
 
 if [ "$dry" = 1 ]; then echo "Dry run: nothing changed."; exit 0; fi
-echo "Removed $(printf '%s' "$booked" | grep -c . || true) earlier wake(s); booked $count."
+removed=$(printf '%s' "$booked" | grep -c . || true)
+span="$days days"; [ "$days" != 1 ] || span="1 day"
+if [ "$mode" = cancel ]; then
+  echo "Removed $removed earlier wake(s)."
+elif [ "$count" -gt 0 ]; then
+  # The last planned wake, MM/dd/yy HH:mm:ss in Mac local time, as "Wed 23 Dec".
+  through=$(LC_ALL=C date -j -f '%m/%d/%y %H:%M:%S' "$(printf '%s\n' "$planned" | tail -n 1)" '+%a %e %b' | tr -s ' ')
+  noun=wakes; [ "$count" != 1 ] || noun=wake
+  echo "Removed $removed earlier wake(s); booked $count $noun for the next $span, through $through."
+else
+  echo "Removed $removed earlier wake(s); booked 0 wakes for the next $span."
+fi
 pmset -g sched | grep "by '$OWNER'" || true

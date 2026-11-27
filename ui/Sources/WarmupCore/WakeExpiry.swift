@@ -63,7 +63,7 @@ public enum WakeExpiry {
         let day = FriendlyTime.day(lastBookedDay, today: nil)
         return (
             title: "Wake bookings end \(when)",
-            body: "After \(day) the Mac will not wake for warm-ups. Run schedule-wakes again to book the next 7 days."
+            body: "After \(day) the Mac will not wake for warm-ups. Run schedule-wakes again to book the next 4 weeks."
         )
     }
 }

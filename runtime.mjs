@@ -1238,17 +1238,19 @@ function capReached(state, enrollmentId, zone, now) {
 // for an incompatible change; add a feature name when a new command shape becomes available.
 export const UI_CAPABILITY = Object.freeze({ version: 1, features: Object.freeze(['expected_installation_id', 'expected_revision', 'expected_local_date', 'schedule_inspect', 'schedule_weekdays', 'slot_explanation', 'scoped_slot_overlap', 'work_lock_status', 'usage_windows', 'schedule_vacations', 'scheduled_accounts', 'schedule_undo', 'daily_caps']) });
 const PROJECTION_DAYS = 7;
+// `schedule inspect --days N` may project up to 4 weeks; every other projection keeps PROJECTION_DAYS.
+export const MAX_PROJECTION_DAYS = 28;
 const EVIDENCE_RETENTION_MS = 30 * 86400000;
 // Read-only projection of the same admissions tick would resolve. Each admission keeps its
 // logical slot key; a nonexistent local minute is reported instead of being silently moved.
-function projectSchedule(data, schedule, now) {
+function projectSchedule(data, schedule, now, dayCount = PROJECTION_DAYS) {
   const { state } = data;
   const zone = schedule.zone;
   const today = localDate(localParts(now, zone));
   const accounts = scheduledEnrollments(data).map(e => e.enrollmentId);
   const next = state.scheduleEnabled && accounts.length ? nextAdmission(state, schedule, now, accounts.length) : null;
   const days = [];
-  for (let offset = 0; offset < PROJECTION_DAYS; offset++) {
+  for (let offset = 0; offset < dayCount; offset++) {
     const date = offsetDate(today, offset);
     const resolved = admissionsOnDate(schedule, date);
     const admissions = [];
@@ -1382,7 +1384,7 @@ function inspectSchedule(data, command, services) {
     if (!validSlot(command.slot)) throwCode('invalid_slot');
     return result(0, 'ready', 'slot_explanation', { ...inspectBase(data, schedule), zone, explanation: slotExplanation(data, schedule, command.slot, now) });
   }
-  const current = projectSchedule(data, schedule, now);
+  const current = projectSchedule(data, schedule, now, command.projectionDays);
   if (!command.proposal) return result(0, 'ready', 'schedule_projection', { ...inspectBase(data, schedule), ...current });
   const { date, edits } = proposeEdit(data, command.proposal, now, zone);
   const proposedData = { ...data, state: { ...data.state, scheduleEdits: edits } };

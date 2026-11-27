@@ -34,6 +34,10 @@ Manual runs work with scheduling disabled and without an earlier pilot, subject 
 
 Each command emits one bounded protocolVersion-1 JSON object with command, outcome, sanitized reason, installationId, engineVersion and observedAt. `run` also always reports selected, attempted and individual results. Attempted counts transport dispatches, not reservations, success or quota spent.
 
+### Engine 1.2.6-offline (27 November 2026)
+
+`schedule inspect --days N`, with N from 1 to 28, returns the same projection for N days: today plus N-1. `scripts/schedule-wakes.sh` uses it to book wakes 4 weeks ahead. `--days` combines with no other inspect option (the global `--expected-installation-id` still applies): with `--slot`, an edit preview, `--expected-revision`, a second `--days`, or an N of 0, 29, `07` or `7x` the reply is `invalid_invocation`. Plain `schedule inspect`, edit previews and `status` keep 7 days.
+
 ### Engine 1.2.5-offline (27 November 2026)
 
 The batch power hold is now `/usr/bin/caffeinate -s -i -w <pid>`: `-s` asks macOS to keep the system awake on AC power and is ignored on battery. Whether it keeps a lid-closed Mac awake through a whole batch is not yet checked. Everything else about the hold is unchanged.
@@ -168,6 +172,7 @@ Append `--preview` to an edit to validate it and see the resulting schedule with
 ```sh
 schedule weekdays 1,2,3,4,5        # ISO days, Monday = 1; `all` restores every day
 schedule inspect                   # today plus six days, read-only
+schedule inspect --days 28         # up to 28 days (1 to 28), read-only
 schedule inspect weekdays 1,2,3,4,5   # preview a proposed edit without saving
 schedule inspect move 08:00 09:15 --today
 schedule inspect --slot 2026-11-20T08:00
